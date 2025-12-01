@@ -33,7 +33,6 @@ export interface User {
   role: UserRole;
   phone?: string;
   active: boolean;
-  emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
   customPermissions?: Permission[];

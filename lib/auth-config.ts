@@ -1,7 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getUserByEmail, getUserPermissions } from "./firebase/firestore";
-import bcrypt from "bcryptjs";
+import { adminAuth } from "./firebase/admin";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -9,58 +9,53 @@ export const authOptions: NextAuthOptions = {
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+        idToken: { label: "Firebase ID Token", type: "text" },
         otpVerified: { label: "OTP Verified", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email and password required");
+        if (!credentials?.email || !credentials?.idToken) {
+          throw new Error("Email and ID token required");
         }
 
         // Check if OTP was verified (2FA)
         if (credentials.otpVerified !== "true") {
-          throw new Error("Email verification required");
+          throw new Error("OTP verification required");
         }
 
-        const user = await getUserByEmail(credentials.email);
+        try {
+          // Verify Firebase ID token
+          const decodedToken = await adminAuth.verifyIdToken(credentials.idToken);
+          
+          if (decodedToken.email !== credentials.email) {
+            throw new Error("Token email mismatch");
+          }
 
-        if (!user) {
-          throw new Error("Invalid credentials");
+          // Get user from Firestore (for role & permissions)
+          const user = await getUserByEmail(credentials.email);
+
+          if (!user) {
+            throw new Error("User not found in database");
+          }
+
+          if (!user.active) {
+            throw new Error("Account is inactive");
+          }
+
+          // Get user permissions
+          const permissions = await getUserPermissions(user.uid);
+
+          return {
+            id: user.uid,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            permissions,
+            emailVerified: Boolean(decodedToken.email_verified || false), // ✅ Always boolean
+          };
+        } catch (error: any) {
+          console.error("Auth error:", error);
+          throw new Error("Authentication failed");
         }
-
-        if (!user.active) {
-          throw new Error("Account is inactive");
-        }
-
-        // Verify password
-        const passwordDoc = await require("./firebase/admin").adminDb
-          .collection("users")
-          .doc(user.uid)
-          .get();
-
-        const passwordHash = passwordDoc.data()?.passwordHash;
-
-        if (!passwordHash) {
-          throw new Error("Password not set");
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, passwordHash);
-
-        if (!isValid) {
-          throw new Error("Invalid credentials");
-        }
-
-        // Get user permissions
-        const permissions = await getUserPermissions(user.uid);
-
-        return {
-          id: user.uid,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          permissions,
-          emailVerified: user.emailVerified, // FIX: Ensure boolean type
-        };
       },
     }),
   ],
@@ -82,7 +77,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = user.role;
         token.permissions = user.permissions;
-        token.emailVerified = Boolean(user.emailVerified); // FIX: Ensure boolean
+        token.emailVerified = Boolean(user.emailVerified);
       }
 
       // Refresh permissions on session update
@@ -99,7 +94,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role;
         session.user.permissions = token.permissions;
-        session.user.emailVerified = Boolean(token.emailVerified); // FIX: Ensure boolean
+        session.user.emailVerified = Boolean(token.emailVerified);
       }
       return session;
     },

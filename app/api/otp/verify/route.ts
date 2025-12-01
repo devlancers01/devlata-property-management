@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyOTP, updateUserEmailVerification, deleteVerifiedOTPs } from "@/lib/firebase/firestore";
+import { verifyOTP, deleteVerifiedOTPs } from "@/lib/firebase/firestore";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,14 +19,6 @@ export async function POST(req: NextRequest) {
         { error: "Invalid or expired OTP" },
         { status: 400 }
       );
-    }
-
-    // Update email verification status if purpose is email_verification
-    if (purpose === "email_verification") {
-      const user = await require("@/lib/firebase/firestore").getUserByEmail(email);
-      if (user) {
-        await updateUserEmailVerification(user.uid);
-      }
     }
 
     // Clean up verified OTPs

@@ -1,281 +1,232 @@
-"use client"
+"use client";
 
-import type React from "react"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AppShell } from "@/components/app-shell";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Search, Eye, Loader2 } from "lucide-react";
+import type { CustomerModel } from "@/models/customer.model";
 
-import { useState } from "react"
-import { AppShell } from "@/components/app-shell"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Pencil, Trash2 } from "lucide-react"
-
-type Customer = {
-  id: number
-  name: string
-  age: string
-  address: string
-  idType: string
-  idNumber: string
-  phone: string
-  email: string
-  vehicle: string
-  checkIn: string
-  checkOut: string
-  paymentMode: string
+// Helper to safely convert to Date
+function toDate(value: any): Date {
+  if (value instanceof Date) return value;
+  if (value && typeof value === 'object' && 'toDate' in value) {
+    return value.toDate();
+  }
+  if (typeof value === 'string') return new Date(value);
+  return new Date();
 }
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([
-    {
-      id: 1,
-      name: "John Doe",
-      age: "32",
-      address: "123 Main St, Mumbai",
-      idType: "Aadhaar",
-      idNumber: "1234 5678 9012",
-      phone: "+91 98765 43210",
-      email: "john@example.com",
-      vehicle: "MH01AB1234",
-      checkIn: "2025-01-20T14:00",
-      checkOut: "2025-01-22T11:00",
-      paymentMode: "Cash",
-    },
-  ])
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
-  const [formData, setFormData] = useState<Partial<Customer>>({})
+  const router = useRouter();
+  const [customers, setCustomers] = useState<CustomerModel[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (editingCustomer) {
-      setCustomers(
-        customers.map((c) => (c.id === editingCustomer.id ? ({ ...formData, id: editingCustomer.id } as Customer) : c)),
-      )
-    } else {
-      setCustomers([...customers, { ...formData, id: Date.now() } as Customer])
+  useEffect(() => {
+    fetchCustomers();
+  }, [statusFilter]);
+
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") {
+        params.set("status", statusFilter);
+      }
+
+      const res = await fetch(`/api/customers?${params}`);
+      const data = await res.json();
+      setCustomers(data.customers || []);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setLoading(false);
     }
-    setDialogOpen(false)
-    setFormData({})
-    setEditingCustomer(null)
-  }
+  };
 
-  const handleEdit = (customer: Customer) => {
-    setEditingCustomer(customer)
-    setFormData(customer)
-    setDialogOpen(true)
-  }
+  const filteredCustomers = customers.filter((customer) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      customer.name.toLowerCase().includes(query) ||
+      customer.email.toLowerCase().includes(query) ||
+      customer.phone.toLowerCase().includes(query)
+    );
+  });
 
-  const handleDelete = (id: number) => {
-    setCustomers(customers.filter((c) => c.id !== id))
-  }
-
-  const openAddDialog = () => {
-    setEditingCustomer(null)
-    setFormData({})
-    setDialogOpen(true)
-  }
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+      case "completed":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+      case "cancelled":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+      default:
+        return "bg-slate-100 text-slate-800";
+    }
+  };
 
   return (
     <AppShell>
       <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col md:flex-row gap-2 md:items-center items-start justify-between">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row gap-4 md:items-center justify-between">
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-balance">Customer Entry</h1>
-            <p className="text-muted-foreground mt-1">Manage guest information and bookings</p>
+            <h1 className="text-2xl md:text-3xl font-bold">Customer Bookings</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage guest information and reservations
+            </p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openAddDialog}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Customer
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                      id="name"
-                      value={formData.name || ""}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="age">Age</Label>
-                    <Input
-                      id="age"
-                      type="number"
-                      value={formData.age || ""}
-                      onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Input
-                      id="address"
-                      value={formData.address || ""}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="idType">ID Proof Type</Label>
-                    <Select
-                      value={formData.idType}
-                      onValueChange={(value) => setFormData({ ...formData, idType: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select ID type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Aadhaar">Aadhaar</SelectItem>
-                        <SelectItem value="Driving License">Driving License</SelectItem>
-                        <SelectItem value="Voter Card">Voter Card</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="idNumber">ID Number</Label>
-                    <Input
-                      id="idNumber"
-                      value={formData.idNumber || ""}
-                      onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={formData.phone || ""}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email || ""}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicle">Vehicle Number</Label>
-                    <Input
-                      id="vehicle"
-                      value={formData.vehicle || ""}
-                      onChange={(e) => setFormData({ ...formData, vehicle: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="checkIn">Check-In Date & Time</Label>
-                    <Input
-                      id="checkIn"
-                      type="datetime-local"
-                      value={formData.checkIn || ""}
-                      onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="checkOut">Check-Out Date & Time</Label>
-                    <Input
-                      id="checkOut"
-                      type="datetime-local"
-                      value={formData.checkOut || ""}
-                      onChange={(e) => setFormData({ ...formData, checkOut: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="paymentMode">Payment Mode</Label>
-                    <Select
-                      value={formData.paymentMode}
-                      onValueChange={(value) => setFormData({ ...formData, paymentMode: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select payment mode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Cash">Cash</SelectItem>
-                        <SelectItem value="Account Pay">Account Pay</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">{editingCustomer ? "Update" : "Add"} Customer</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => router.push("/customers/new")} size="lg">
+            <Plus className="w-5 h-5 mr-2" />
+            New Booking
+          </Button>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Input
+              placeholder="Search by name, email, or phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant={statusFilter === "all" ? "default" : "outline"}
+              onClick={() => setStatusFilter("all")}
+              size="sm"
+            >
+              All
+            </Button>
+            <Button
+              variant={statusFilter === "active" ? "default" : "outline"}
+              onClick={() => setStatusFilter("active")}
+              size="sm"
+            >
+              Active
+            </Button>
+            <Button
+              variant={statusFilter === "completed" ? "default" : "outline"}
+              onClick={() => setStatusFilter("completed")}
+              size="sm"
+            >
+              Completed
+            </Button>
+            <Button
+              variant={statusFilter === "cancelled" ? "default" : "outline"}
+              onClick={() => setStatusFilter("cancelled")}
+              size="sm"
+            >
+              Cancelled
+            </Button>
+          </div>
         </div>
 
         {/* Customer List */}
-        <div className="grid gap-4">
-          {customers.map((customer) => (
-            <Card key={customer.id}>
-              <CardContent className="p-4 md:p-6">
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold text-lg">{customer.name}</h3>
-                        <p className="text-sm text-muted-foreground">{customer.email}</p>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : filteredCustomers.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-muted-foreground">No customers found</p>
+              <Button
+                onClick={() => router.push("/customers/new")}
+                className="mt-4"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create First Booking
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {filteredCustomers.map((customer) => (
+              <Card
+                key={customer.uid}
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => router.push(`/customers/${customer.uid}`)}
+              >
+                <CardContent className="p-4 md:p-6">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                    <div className="flex-1 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-semibold text-lg">{customer.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {customer.email}
+                          </p>
+                        </div>
+                        <Badge className={getStatusColor(customer.status)}>
+                          {customer.status}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Phone:</span>{" "}
+                          {customer.phone}
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Check-In:</span>{" "}
+                          {toDate(customer.checkIn).toLocaleDateString()}
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Check-Out:</span>{" "}
+                          {toDate(customer.checkOut).toLocaleDateString()}
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Total:</span> ₹
+                          {customer.totalAmount.toLocaleString()}
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Balance:</span>{" "}
+                          <span
+                            className={
+                              customer.balanceAmount > 0
+                                ? "text-red-600 font-semibold"
+                                : "text-green-600 font-semibold"
+                            }
+                          >
+                            ₹{customer.balanceAmount.toLocaleString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Vehicle:</span>{" "}
+                          {customer.vehicleNumber}
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Age:</span> {customer.age}
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Phone:</span> {customer.phone}
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Vehicle:</span> {customer.vehicle}
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">ID:</span> {customer.idType} - {customer.idNumber}
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Payment:</span> {customer.paymentMode}
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Check-In:</span>{" "}
-                        {new Date(customer.checkIn).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleEdit(customer)}>
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDelete(customer.id)}>
-                      <Trash2 className="w-4 h-4" />
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/customers/${customer.uid}`);
+                      }}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Details
                     </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </AppShell>
-  )
+  );
 }

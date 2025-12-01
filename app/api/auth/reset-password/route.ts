@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserByEmail, verifyOTP, updateUserPassword } from "@/lib/firebase/firestore";
-import bcrypt from "bcryptjs";
+import { getUserByEmail, verifyOTP, deleteVerifiedOTPs } from "@/lib/firebase/firestore";
+import { adminAuth } from "@/lib/firebase/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,11 +37,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Hash new password
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    // Update password in Firebase Auth (not Firestore)
+    await adminAuth.updateUser(user.uid, {
+      password: newPassword,
+    });
 
-    // Update password
-    await updateUserPassword(user.uid, passwordHash);
+    // Clean up verified OTPs
+    await deleteVerifiedOTPs(email);
 
     return NextResponse.json({
       success: true,

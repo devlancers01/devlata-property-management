@@ -19,7 +19,7 @@ if (!getApps().length) {
 }
 
 const adminAuth = getAuth(adminApp);
-const adminDb = getFirestore(adminApp);
+const adminDb = getFirestore(adminApp, "development");
 const adminStorage = getStorage(adminApp);
 
 export { adminApp, adminAuth, adminDb, adminStorage };

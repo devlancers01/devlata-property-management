@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Lock, Shield } from "lucide-react";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,14 +19,27 @@ export default function LoginPage() {
   const [otp, setOtp] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [firebaseIdToken, setFirebaseIdToken] = useState("");
 
-  // Step 1: Send OTP
+  // Step 1: Validate credentials with Firebase Auth & Send OTP
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
+      // Authenticate with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+      // Get ID token
+      const idToken = await userCredential.user.getIdToken();
+      setFirebaseIdToken(idToken);
+
+      // Send OTP for 2FA
       const res = await fetch("/api/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,20 +54,29 @@ export default function LoginPage() {
 
       setStep("otp");
     } catch (err: any) {
-      setError(err.message);
+      console.error("Login error:", err);
+      if (err.code === "auth/user-not-found") {
+        setError("User not found");
+      } else if (err.code === "auth/wrong-password") {
+        setError("Invalid password");
+      } else if (err.code === "auth/invalid-credential") {
+        setError("Invalid email or password");
+      } else {
+        setError(err.message || "Authentication failed");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Step 2: Verify OTP and Login
+  // Step 2: Verify OTP and Create Session
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      // First verify OTP
+      // Verify OTP
       const otpRes = await fetch("/api/otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,10 +89,10 @@ export default function LoginPage() {
         throw new Error(otpData.error || "Invalid OTP");
       }
 
-      // Then sign in with NextAuth
+      // Create NextAuth session with Firebase ID token
       const result = await signIn("credentials", {
         email,
-        password,
+        idToken: firebaseIdToken,
         otpVerified: "true",
         redirect: false,
       });
@@ -79,8 +103,9 @@ export default function LoginPage() {
 
       // Set session duration based on remember me
       if (!rememberMe) {
-        // Set cookie maxAge to 7 days instead of 30
-        document.cookie = `next-auth.session-token=; max-age=${7 * 24 * 60 * 60}; path=/`;
+        document.cookie = `next-auth.session-token=; max-age=${
+          7 * 24 * 60 * 60
+        }; path=/`;
       }
 
       router.push("/dashboard");
@@ -164,7 +189,7 @@ export default function LoginPage() {
                   </span>
                 </label>
 
-                
+                <a
                   href="/forgot-password"
                   className="text-sm text-slate-900 hover:underline"
                 >
@@ -176,7 +201,7 @@ export default function LoginPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Sending OTP...
+                    Authenticating...
                   </>
                 ) : (
                   "Continue"
@@ -241,6 +266,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={handleSendOTP}
                 className="w-full text-sm text-slate-600 hover:text-slate-900"
+                disabled={loading}
               >
                 Didn&apos;t receive code? Resend
               </button>

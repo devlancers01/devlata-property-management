@@ -81,7 +81,6 @@ export async function POST(req: NextRequest) {
       name,
       role,
       phone,
-      passwordHash,
     });
 
     // Send email verification OTP
