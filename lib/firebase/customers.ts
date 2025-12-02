@@ -1,11 +1,11 @@
-import { adminDb, adminStorage } from "./admin";
+import { adminDb } from "./admin";
 import { CustomerModel, GroupMember, Payment, ExtraCharge } from "@/models/customer.model";
 import { Timestamp } from "firebase-admin/firestore";
 
 // Helper function to safely convert Timestamp to Date
 function toDate(value: Date | Timestamp): Date {
   if (value instanceof Date) return value;
-  if (value && typeof value === 'object' && 'toDate' in value) {
+  if (value && typeof value === "object" && "toDate" in value) {
     return (value as any).toDate();
   }
   return value as Date;
@@ -13,31 +13,63 @@ function toDate(value: Date | Timestamp): Date {
 
 // ==================== CUSTOMER OPERATIONS ====================
 
-export async function createCustomer(data: Omit<CustomerModel, "uid" | "createdAt" | "updatedAt">): Promise<CustomerModel> {
-  const now = new Date();
-  
-  const customerData = {
-    ...data,
-    checkIn: Timestamp.fromDate(toDate(data.checkIn)),
-    checkOut: Timestamp.fromDate(toDate(data.checkOut)),
-    createdAt: Timestamp.fromDate(now),
-    updatedAt: Timestamp.fromDate(now),
-  };
+export async function createCustomer(data: Partial<CustomerModel>): Promise<string> {
+  try {
+    const customerRef = adminDb.collection("customers").doc();
 
-  const docRef = await adminDb.collection("customers").add(customerData);
-  
-  return {
-    uid: docRef.id,
-    ...data,
-    createdAt: now,
-    updatedAt: now,
-  };
+    // Helper to ensure Date object
+    const ensureDate = (value: any): Date => {
+      if (value instanceof Date) return value;
+      if (typeof value === "string") return new Date(value);
+      if (value && typeof value === "object" && "toDate" in value) {
+        return value.toDate();
+      }
+      return new Date();
+    };
+
+    // Convert dates to Firestore Timestamps
+    const customerData = {
+      uid: customerRef.id,
+      name: data.name!,
+      age: data.age!,
+      phone: data.phone!,
+      email: data.email!,
+      address: data.address!,
+      idType: data.idType!,
+      idValue: data.idValue || "",
+      idProofUrl: data.idProofUrl || "",
+      vehicleNumber: data.vehicleNumber!,
+      checkIn: Timestamp.fromDate(ensureDate(data.checkIn)),
+      checkOut: Timestamp.fromDate(ensureDate(data.checkOut)),
+      checkInTime: data.checkInTime || "12:00",
+      checkOutTime: data.checkOutTime || "10:00",
+      instructions: data.instructions || "",
+      stayCharges: data.stayCharges!,
+      cuisineCharges: data.cuisineCharges || 0,
+      extraChargesTotal: data.extraChargesTotal || 0,
+      totalAmount: data.totalAmount!,
+      receivedAmount: data.receivedAmount || 0,
+      balanceAmount: data.balanceAmount!,
+      advancePaymentMode: (data as any).advancePaymentMode || "",
+      advanceReceiptUrl: (data as any).advanceReceiptUrl || "",
+      status: data.status || "active",
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+
+    await customerRef.set(customerData);
+
+    return customerRef.id;
+  } catch (error) {
+    console.error("Error creating customer:", error);
+    throw error;
+  }
 }
 
 export async function getCustomerById(uid: string): Promise<CustomerModel | null> {
   const doc = await adminDb.collection("customers").doc(uid).get();
   if (!doc.exists) return null;
-  
+
   const data = doc.data();
   return {
     uid: doc.id,
@@ -51,8 +83,8 @@ export async function getCustomerById(uid: string): Promise<CustomerModel | null
 
 export async function getAllCustomers(filters?: {
   status?: string;
-  startDate?: Date;
-  endDate?: Date;
+  startDate?: string;
+  endDate?: string;
   searchQuery?: string;
 }): Promise<CustomerModel[]> {
   let query = adminDb.collection("customers").orderBy("checkIn", "desc");
@@ -62,7 +94,7 @@ export async function getAllCustomers(filters?: {
   }
 
   const snapshot = await query.get();
-  
+
   let customers = snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
@@ -89,8 +121,8 @@ export async function getAllCustomers(filters?: {
   if (filters?.startDate || filters?.endDate) {
     customers = customers.filter((c) => {
       const checkIn = toDate(c.checkIn);
-      if (filters.startDate && checkIn < filters.startDate) return false;
-      if (filters.endDate && checkIn > filters.endDate) return false;
+      if (filters.startDate && checkIn < new Date(filters.startDate)) return false;
+      if (filters.endDate && checkIn > new Date(filters.endDate)) return false;
       return true;
     });
   }
@@ -125,55 +157,84 @@ export async function checkBookingConflict(
   checkOut: Date,
   excludeCustomerId?: string
 ): Promise<{ hasConflict: boolean; conflictingBookings: CustomerModel[] }> {
-  const checkInTimestamp = Timestamp.fromDate(checkIn);
-  const checkOutTimestamp = Timestamp.fromDate(checkOut);
+  try {
+    // Helper to ensure Date object
+    const ensureDate = (value: any): Date => {
+      if (value instanceof Date) return value;
+      if (typeof value === "string") return new Date(value);
+      if (value && typeof value === "object" && "toDate" in value) {
+        return value.toDate();
+      }
+      return new Date();
+    };
 
-  // Get all active bookings
-  const snapshot = await adminDb
-    .collection("customers")
-    .where("status", "==", "active")
-    .get();
+    const checkInDate = ensureDate(checkIn);
+    const checkOutDate = ensureDate(checkOut);
 
-  const conflictingBookings: CustomerModel[] = [];
+    // Query for active bookings
+    const snapshot = await adminDb
+      .collection("customers")
+      .where("status", "==", "active")
+      .get();
 
-  for (const doc of snapshot.docs) {
-    if (excludeCustomerId && doc.id === excludeCustomerId) continue;
+    const conflictingBookings: CustomerModel[] = [];
 
-    const data = doc.data();
-    const existingCheckIn = data.checkIn;
-    const existingCheckOut = data.checkOut;
+    snapshot.forEach((docSnap) => {
+      if (excludeCustomerId && docSnap.id === excludeCustomerId) {
+        return; // Skip the customer being edited
+      }
 
-    // Check for overlap
-    const hasOverlap =
-      checkInTimestamp.toDate() < toDate(existingCheckOut) &&
-      checkOutTimestamp.toDate() > toDate(existingCheckIn);
+      const data = docSnap.data();
+      const existingCheckIn = toDate(data.checkIn);
+      const existingCheckOut = toDate(data.checkOut);
 
-    if (hasOverlap) {
-      conflictingBookings.push({
-        uid: doc.id,
-        ...data,
-        checkIn: toDate(existingCheckIn),
-        checkOut: toDate(existingCheckOut),
-        createdAt: toDate(data.createdAt),
-        updatedAt: toDate(data.updatedAt),
-      } as CustomerModel);
-    }
+      // Check for overlap: new booking overlaps if:
+      // checkIn < existingCheckOut AND checkOut > existingCheckIn
+      const hasOverlap =
+        checkInDate < existingCheckOut && checkOutDate > existingCheckIn;
+
+      if (hasOverlap) {
+        conflictingBookings.push({
+          ...data,
+          uid: docSnap.id,
+          checkIn: existingCheckIn,
+          checkOut: existingCheckOut,
+        } as CustomerModel);
+      }
+    });
+
+    return {
+      hasConflict: conflictingBookings.length > 0,
+      conflictingBookings,
+    };
+  } catch (error) {
+    console.error("Error checking booking conflicts:", error);
+    throw error;
   }
-
-  return {
-    hasConflict: conflictingBookings.length > 0,
-    conflictingBookings,
-  };
 }
 
 // ==================== GROUP MEMBERS ====================
 
-export async function addGroupMember(customerId: string, member: GroupMember): Promise<void> {
-  await adminDb
+export async function addGroupMember(
+  customerId: string,
+  member: Omit<GroupMember, "uid">
+): Promise<string> {
+  // Remove undefined values
+  const cleanMember: any = {};
+  if (member.name) cleanMember.name = member.name;
+  if (member.age) cleanMember.age = member.age;
+  if (member.idType) cleanMember.idType = member.idType;
+  if (member.idValue) cleanMember.idValue = member.idValue;
+  if (member.idProofUrl) cleanMember.idProofUrl = member.idProofUrl;
+  cleanMember.createdAt = Timestamp.now();
+
+  const memberRef = await adminDb
     .collection("customers")
     .doc(customerId)
     .collection("members")
-    .add(member);
+    .add(cleanMember);
+
+  return memberRef.id;
 }
 
 export async function getGroupMembers(customerId: string): Promise<GroupMember[]> {
@@ -183,7 +244,10 @@ export async function getGroupMembers(customerId: string): Promise<GroupMember[]
     .collection("members")
     .get();
 
-  return snapshot.docs.map((doc) => doc.data() as GroupMember);
+  return snapshot.docs.map((doc) => ({
+    uid: doc.id,
+    ...doc.data(),
+  })) as GroupMember[];
 }
 
 export async function deleteGroupMember(customerId: string, memberId: string): Promise<void> {
@@ -197,29 +261,32 @@ export async function deleteGroupMember(customerId: string, memberId: string): P
 
 // ==================== PAYMENTS ====================
 
-export async function addPayment(customerId: string, payment: Payment): Promise<void> {
-  const paymentData = {
-    ...payment,
-    timestamp: Timestamp.fromDate(new Date()),
-  };
-
-  await adminDb
+export async function addPayment(
+  customerId: string,
+  payment: Omit<Payment, "uid" | "date">
+): Promise<string> {
+  const paymentRef = await adminDb
     .collection("customers")
     .doc(customerId)
     .collection("payments")
-    .add(paymentData);
+    .add({
+      ...payment,
+      date: Timestamp.now(),
+    });
 
   // Update customer's receivedAmount
   const customer = await getCustomerById(customerId);
   if (customer) {
     const newReceivedAmount = customer.receivedAmount + payment.amount;
     const newBalanceAmount = customer.totalAmount - newReceivedAmount;
-    
+
     await updateCustomer(customerId, {
       receivedAmount: newReceivedAmount,
       balanceAmount: newBalanceAmount,
     });
   }
+
+  return paymentRef.id;
 }
 
 export async function getPayments(customerId: string): Promise<Payment[]> {
@@ -227,45 +294,50 @@ export async function getPayments(customerId: string): Promise<Payment[]> {
     .collection("customers")
     .doc(customerId)
     .collection("payments")
-    .orderBy("timestamp", "desc")
+    .orderBy("date", "desc")
     .get();
 
   return snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
+      uid: doc.id,
       ...data,
-      timestamp: data.timestamp ? toDate(data.timestamp) : new Date(),
+      date: data.date ? toDate(data.date) : new Date(),
     } as Payment;
   });
 }
 
 // ==================== EXTRA CHARGES ====================
 
-export async function addExtraCharge(customerId: string, charge: ExtraCharge): Promise<void> {
-  const chargeData = {
-    ...charge,
-    timestamp: Timestamp.fromDate(new Date()),
-  };
-
-  await adminDb
+export async function addExtraCharge(
+  customerId: string,
+  charge: Omit<ExtraCharge, "uid" | "date">
+): Promise<string> {
+  const chargeRef = await adminDb
     .collection("customers")
     .doc(customerId)
     .collection("extras")
-    .add(chargeData);
+    .add({
+      ...charge,
+      date: Timestamp.now(),
+    });
 
   // Update customer's extraChargesTotal and totalAmount
   const customer = await getCustomerById(customerId);
   if (customer) {
     const newExtraChargesTotal = customer.extraChargesTotal + charge.amount;
-    const newTotalAmount = customer.stayCharges + customer.cuisineCharges + newExtraChargesTotal;
+    const newTotalAmount =
+      customer.stayCharges + customer.cuisineCharges + newExtraChargesTotal;
     const newBalanceAmount = newTotalAmount - customer.receivedAmount;
-    
+
     await updateCustomer(customerId, {
       extraChargesTotal: newExtraChargesTotal,
       totalAmount: newTotalAmount,
       balanceAmount: newBalanceAmount,
     });
   }
+
+  return chargeRef.id;
 }
 
 export async function getExtraCharges(customerId: string): Promise<ExtraCharge[]> {
@@ -273,14 +345,15 @@ export async function getExtraCharges(customerId: string): Promise<ExtraCharge[]
     .collection("customers")
     .doc(customerId)
     .collection("extras")
-    .orderBy("timestamp", "desc")
+    .orderBy("date", "desc")
     .get();
 
   return snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
+      uid: doc.id,
       ...data,
-      timestamp: data.timestamp ? toDate(data.timestamp) : new Date(),
+      date: data.date ? toDate(data.date) : new Date(),
     } as ExtraCharge;
   });
 }

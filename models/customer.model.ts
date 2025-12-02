@@ -1,63 +1,64 @@
-import { Timestamp } from "firebase-admin/firestore";
 
 export type CustomerStatus = "active" | "completed" | "cancelled";
 export type IDType = "Aadhar" | "PAN" | "Driving License" | "Passport" | "Other";
 export type PaymentMode = "cash" | "UPI" | "bank";
 export type PaymentType = "advance" | "part" | "final" | "extra" | "cancellation";
 
+import { Timestamp } from "firebase-admin/firestore";
+
 export interface CustomerModel {
   uid: string;
   name: string;
+  age: number;
   phone: string;
   email: string;
-  age: number; // NEW: As requested
-  idType: IDType;
-  idValue: string;
-  idProofUrl?: string;
   address: string;
+  idType: "Aadhar" | "PAN" | "Driving License" | "Passport" | "Other";
+  idValue?: string;
+  idProofUrl?: string;
   vehicleNumber: string;
-  checkIn: Timestamp | Date;
-  checkOut: Timestamp | Date;
-  checkInTime: string; // "HH:MM" format, default "12:00"
-  checkOutTime: string; // "HH:MM" format, default "10:00"
-  instructions: string;
-  status: CustomerStatus;
-  
-  // Financial (with balance field)
+  checkIn: Date | Timestamp;
+  checkOut: Date | Timestamp;
+  checkInTime: string;
+  checkOutTime: string;
+  instructions?: string;
   stayCharges: number;
   cuisineCharges: number;
   extraChargesTotal: number;
   totalAmount: number;
   receivedAmount: number;
-  balanceAmount: number; // NEW: As requested
-  cancellationCharges: number;
-  
-  createdAt: Timestamp | Date;
-  updatedAt: Timestamp | Date;
-  createdBy: string; // User UID
+  balanceAmount: number;
+  advancePaymentMode?: string; // Added
+  advanceReceiptUrl?: string; // Added
+  status: "active" | "completed" | "cancelled";
+  createdAt: Date | Timestamp;
+  updatedAt: Date | Timestamp;
 }
 
 export interface GroupMember {
+  uid: string;
   name: string;
   age: number;
-  idType: IDType;
-  idValue: string;
+  idType: "Aadhar" | "PAN" | "Driving License" | "Passport" | "Other";
+  idValue?: string;
+  idProofUrl?: string;
+  createdAt?: Date | Timestamp;
 }
 
 export interface Payment {
-  type: PaymentType;
+  uid: string;
   amount: number;
-  mode: PaymentMode;
+  mode: string;
+  date: Date | Timestamp;
+  notes?: string;
   receiptUrl?: string;
-  timestamp: Timestamp | Date;
-  recordedBy: string; // User UID
 }
 
 export interface ExtraCharge {
-  remark: string;
+  uid: string;
+  description: string;
   amount: number;
-  timestamp: Timestamp | Date;
-  recordedBy: string; // User UID
+  date: Date | Timestamp;
 }
 
 export interface CustomerCreateInput {
