@@ -1,6 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { getUserByEmail, getUserPermissions } from "./firebase/firestore";
+import { getUserByEmail, getUserPermissions } from "./firebase/users";
 import { adminAuth } from "./firebase/admin";
 
 export const authOptions: NextAuthOptions = {
@@ -41,7 +41,7 @@ export const authOptions: NextAuthOptions = {
                         throw new Error("Account is inactive");
                     }
 
-                    // Get user permissions
+                    // Get user permissions dynamically from role
                     const permissions = await getUserPermissions(user.uid);
 
                     return {
@@ -50,7 +50,7 @@ export const authOptions: NextAuthOptions = {
                         name: user.name,
                         role: user.role,
                         permissions,
-                        emailVerified: Boolean(decodedToken.email_verified || false), // ✅ Always boolean
+                        emailVerified: Boolean(decodedToken.email_verified || false),
                     };
                 } catch (error: any) {
                     console.error("Auth error:", error);
@@ -62,7 +62,7 @@ export const authOptions: NextAuthOptions = {
 
     session: {
         strategy: "jwt",
-        maxAge: 30 * 24 * 60 * 60, // 30 days (for remember me)
+        maxAge: 30 * 24 * 60 * 60, // 30 days
     },
 
     pages: {
@@ -80,10 +80,16 @@ export const authOptions: NextAuthOptions = {
                 token.emailVerified = Boolean(user.emailVerified);
             }
 
-            // Refresh permissions on session update
+            // Refresh permissions on session update or when trigger is update
             if (trigger === "update" && token.id) {
                 const permissions = await getUserPermissions(token.id as string);
                 token.permissions = permissions;
+                
+                // Also refresh role in case it changed
+                const userData = await getUserByEmail(token.email as string);
+                if (userData) {
+                    token.role = userData.role;
+                }
             }
 
             return token;
@@ -92,29 +98,23 @@ export const authOptions: NextAuthOptions = {
         async session({ session, token }) {
             if (token && session.user) {
                 session.user.id = token.id as string;
-                session.user.role = token.role;
-                session.user.permissions = token.permissions;
+                session.user.role = token.role as string;
+                session.user.permissions = token.permissions as string[];
                 session.user.emailVerified = Boolean(token.emailVerified);
             }
             return session;
         },
 
         async redirect({ url, baseUrl }) {
-            // Always redirect to dashboard after successful login
             if (url.startsWith("/api/auth/callback")) {
                 return `${baseUrl}/dashboard`;
             }
 
-            // Allow normal relative redirects
             if (url.startsWith("/")) return `${baseUrl}${url}`;
-
-            // Allow same-origin URLs
             if (url.startsWith(baseUrl)) return url;
 
-            // Default fallback
             return `${baseUrl}/dashboard`;
         },
-
     },
 
     secret: process.env.NEXTAUTH_SECRET,

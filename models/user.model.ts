@@ -1,31 +1,30 @@
 import { Timestamp } from "firebase-admin/firestore";
-import { UserRole, Permission } from "@/types";
+import { Permission } from "@/types/roles";
 
 export interface UserModel {
   uid: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: string; // Dynamic role name (e.g., "admin", "staff", "manager")
   phone: string;
   active: boolean;
-  emailVerified: boolean;
   createdAt: Timestamp | Date;
   updatedAt: Timestamp | Date;
   customPermissions: Permission[];
-  passwordHash: string;
 }
 
 export interface UserCreateInput {
   email: string;
   name: string;
-  role: UserRole;
+  role: string;
   phone?: string;
-  passwordHash: string;
+  active?: boolean;
+  customPermissions?: Permission[];
 }
 
 export interface UserUpdateInput {
   name?: string;
-  role?: UserRole;
+  role?: string;
   phone?: string;
   active?: boolean;
   customPermissions?: Permission[];
@@ -35,18 +34,17 @@ export interface UserPublic {
   uid: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: string;
   phone: string;
   active: boolean;
-  emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
   customPermissions: Permission[];
 }
 
-// Convert Firestore doc to UserPublic (remove passwordHash)
+// Convert Firestore doc to UserPublic
 export function toUserPublic(user: UserModel): UserPublic {
-  const { passwordHash, createdAt, updatedAt, ...rest } = user;
+  const { createdAt, updatedAt, ...rest } = user;
   return {
     ...rest,
     createdAt: createdAt instanceof Timestamp ? createdAt.toDate() : createdAt,
