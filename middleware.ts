@@ -11,9 +11,17 @@ export default withAuth(
       return NextResponse.redirect(new URL("/login", req.url));
     }
 
-    // Admin-only routes
-    if (path.startsWith("/admin") && token.role !== "admin") {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+    // Admin routes - require specific permissions
+    if (path.startsWith("/admin/users")) {
+      if (!token.permissions?.includes("users.view")) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    }
+
+    if (path.startsWith("/admin/roles")) {
+      if (!token.permissions?.includes("roles.view")) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
     }
 
     return NextResponse.next();
@@ -29,9 +37,10 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/customers/:path*",
-    "/expenses/:path*",
-    "/staff/:path*",
-    "/sales/:path*",
+    "/monthly-expenses/:path*",
+    "/yearly-expenses/:path*",
+    "/bookings/:path*",
+    "/settings/:path*",
     "/admin/:path*",
   ],
 };

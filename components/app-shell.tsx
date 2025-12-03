@@ -3,10 +3,11 @@
 import { type ReactNode, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { LayoutDashboard, Users, Wallet, Calendar, Settings, Menu, Building2, TrendingUp } from "lucide-react"
+import { LayoutDashboard, Users, Wallet, Calendar, Settings, Menu, Building2, TrendingUp, Shield, UserCog } from "lucide-react"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -17,9 +18,22 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ]
 
+const adminNavigation = [
+  { name: "User Management", href: "/admin/users", icon: UserCog, permission: "users.view" },
+  { name: "Roles & Permissions", href: "/admin/roles", icon: Shield, permission: "roles.view" },
+]
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { data: session } = useSession()
+
+  // Filter admin navigation based on permissions
+  const visibleAdminNav = adminNavigation.filter(item => 
+    session?.user?.permissions?.includes(item.permission)
+  )
+
+  const allNavigation = [...navigation, ...visibleAdminNav]
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -55,6 +69,35 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             )
           })}
+
+          {/* Admin Section */}
+          {visibleAdminNav.length > 0 && (
+            <>
+              <div className="pt-4 pb-2">
+                <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Administration
+                </p>
+              </div>
+              {visibleAdminNav.map((item) => {
+                const isActive = pathname.startsWith(item.href)
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.name}
+                  </Link>
+                )
+              })}
+            </>
+          )}
         </nav>
       </aside>
 
@@ -87,8 +130,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
               </div>
               <nav className="p-4 space-y-1">
-                {navigation.map((item) => {
-                  const isActive = pathname === item.href
+                {allNavigation.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(item.href)
                   return (
                     <Link
                       key={item.name}

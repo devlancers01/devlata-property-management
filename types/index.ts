@@ -20,7 +20,11 @@ export type Permission =
   | "users.view"
   | "users.create"
   | "users.edit"
-  | "roles.manage";
+  | "roles.manage"
+  | "roles.view"
+  | "roles.create"
+  | "roles.edit"
+  | "roles.delete";
 
 export interface RolePermissions {
   [key: string]: Permission[];
