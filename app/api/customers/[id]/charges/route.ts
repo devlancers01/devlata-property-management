@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getExtraCharges, addExtraCharge } from "@/lib/firebase/customers";
 
+
 // GET /api/customers/[id]/charges - Get extra charges
 export async function GET(
   req: NextRequest,
@@ -51,10 +52,13 @@ export async function POST(
       );
     }
 
-    const chargeUid = await addExtraCharge(id, {
+    // ✅ Build clean charge object (no optional fields for charges)
+    const chargeData = {
       description,
       amount,
-    });
+    };
+
+    const chargeUid = await addExtraCharge(id, chargeData);
 
     return NextResponse.json({
       success: true,

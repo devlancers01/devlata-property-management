@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   Phone,
@@ -21,18 +22,20 @@ import {
   Users,
   Plus,
   Receipt,
-  Download,
   MessageCircle,
   Loader2,
   Calendar,
-  Clock,
   IndianRupee,
   FileText,
+  Edit2,
+  Save,
+  X,
+  Trash2,
+  Check,
 } from "lucide-react";
 import type { CustomerModel } from "@/models/customer.model";
 import { toast } from "sonner";
 
-// Helper to safely convert to Date
 function toDate(value: any): Date {
   if (value instanceof Date) return value;
   if (value && typeof value === "object" && "toDate" in value) {
@@ -78,6 +81,34 @@ export default function CustomerDetailPage() {
   const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Edit states
+  const [editingPersonal, setEditingPersonal] = useState(false);
+  const [editingBooking, setEditingBooking] = useState(false);
+  const [savingPersonal, setSavingPersonal] = useState(false);
+  const [savingBooking, setSavingBooking] = useState(false);
+
+  // Form states for editing
+  const [personalForm, setPersonalForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+    age: 0,
+    idType: "",
+    idValue: "",
+    vehicleNumber: "",
+  });
+
+  const [bookingForm, setBookingForm] = useState({
+    checkIn: "",
+    checkOut: "",
+    checkInTime: "",
+    checkOutTime: "",
+    instructions: "",
+    stayCharges: 0,
+    cuisineCharges: 0,
+  });
+
   // Payment Dialog State
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -91,6 +122,16 @@ export default function CustomerDetailPage() {
   const [chargeAmount, setChargeAmount] = useState("");
   const [addingCharge, setAddingCharge] = useState(false);
 
+  // Member Dialog State
+  const [memberDialogOpen, setMemberDialogOpen] = useState(false);
+  const [memberForm, setMemberForm] = useState({
+    name: "",
+    age: "",
+    idType: "Aadhar",
+    idValue: "",
+  });
+  const [addingMember, setAddingMember] = useState(false);
+
   useEffect(() => {
     fetchCustomerDetails();
   }, [customerId]);
@@ -99,22 +140,41 @@ export default function CustomerDetailPage() {
     try {
       setLoading(true);
 
-      // Fetch customer
       const customerRes = await fetch(`/api/customers/${customerId}`);
       const customerData = await customerRes.json();
-      setCustomer(customerData.customer);
+      const cust = customerData.customer;
+      setCustomer(cust);
 
-      // Fetch group members
+      // Set form values
+      setPersonalForm({
+        name: cust.name,
+        phone: cust.phone,
+        email: cust.email,
+        address: cust.address,
+        age: cust.age,
+        idType: cust.idType,
+        idValue: cust.idValue || "",
+        vehicleNumber: cust.vehicleNumber,
+      });
+
+      setBookingForm({
+        checkIn: toDate(cust.checkIn).toISOString().split("T")[0],
+        checkOut: toDate(cust.checkOut).toISOString().split("T")[0],
+        checkInTime: cust.checkInTime,
+        checkOutTime: cust.checkOutTime,
+        instructions: cust.instructions || "",
+        stayCharges: cust.stayCharges,
+        cuisineCharges: cust.cuisineCharges,
+      });
+
       const membersRes = await fetch(`/api/customers/${customerId}/members`);
       const membersData = await membersRes.json();
       setGroupMembers(membersData.members || []);
 
-      // Fetch payments
       const paymentsRes = await fetch(`/api/customers/${customerId}/payments`);
       const paymentsData = await paymentsRes.json();
       setPayments(paymentsData.payments || []);
 
-      // Fetch extra charges
       const chargesRes = await fetch(`/api/customers/${customerId}/charges`);
       const chargesData = await chargesRes.json();
       setExtraCharges(chargesData.charges || []);
@@ -123,6 +183,52 @@ export default function CustomerDetailPage() {
       toast.error("Failed to load customer details");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSavePersonal = async () => {
+    setSavingPersonal(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(personalForm),
+      });
+
+      if (!res.ok) throw new Error("Failed to update");
+
+      toast.success("Personal information updated!");
+      setEditingPersonal(false);
+      fetchCustomerDetails();
+    } catch (error) {
+      toast.error("Failed to update personal information");
+    } finally {
+      setSavingPersonal(false);
+    }
+  };
+
+  const handleSaveBooking = async () => {
+    setSavingBooking(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...bookingForm,
+          checkIn: new Date(bookingForm.checkIn).toISOString(),
+          checkOut: new Date(bookingForm.checkOut).toISOString(),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to update");
+
+      toast.success("Booking information updated!");
+      setEditingBooking(false);
+      fetchCustomerDetails();
+    } catch (error) {
+      toast.error("Failed to update booking information");
+    } finally {
+      setSavingBooking(false);
     }
   };
 
@@ -135,14 +241,17 @@ export default function CustomerDetailPage() {
     setAddingPayment(true);
 
     try {
+      const paymentData: any = {
+        amount: parseFloat(paymentAmount),
+        mode: paymentMode,
+      };
+
+      if (paymentNotes) paymentData.notes = paymentNotes;
+
       const res = await fetch(`/api/customers/${customerId}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: parseFloat(paymentAmount),
-          mode: paymentMode,
-          notes: paymentNotes,
-        }),
+        body: JSON.stringify(paymentData),
       });
 
       if (!res.ok) throw new Error("Failed to add payment");
@@ -190,6 +299,48 @@ export default function CustomerDetailPage() {
       toast.error("Failed to add charge");
     } finally {
       setAddingCharge(false);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!memberForm.name || !memberForm.age || !memberForm.idType) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+
+    if (!memberForm.idValue) {
+      toast.error("ID number is required");
+      return;
+    }
+
+    setAddingMember(true);
+
+    try {
+      const memberData: any = {
+        name: memberForm.name,
+        age: parseInt(memberForm.age),
+        idType: memberForm.idType,
+      };
+
+      if (memberForm.idValue) memberData.idValue = memberForm.idValue;
+
+      const res = await fetch(`/api/customers/${customerId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(memberData),
+      });
+
+      if (!res.ok) throw new Error("Failed to add member");
+
+      toast.success("Group member added successfully!");
+      setMemberDialogOpen(false);
+      setMemberForm({ name: "", age: "", idType: "Aadhar", idValue: "" });
+      fetchCustomerDetails();
+    } catch (error) {
+      console.error("Error adding member:", error);
+      toast.error("Failed to add group member");
+    } finally {
+      setAddingMember(false);
     }
   };
 
@@ -358,138 +509,403 @@ export default function CustomerDetailPage() {
               {/* Personal Information */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Personal Information</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Personal Information</CardTitle>
+                    {!editingPersonal ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingPersonal(true)}
+                      >
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingPersonal(false);
+                            setPersonalForm({
+                              name: customer.name,
+                              phone: customer.phone,
+                              email: customer.email,
+                              address: customer.address,
+                              age: customer.age,
+                              idType: customer.idType,
+                              idValue: customer.idValue || "",
+                              vehicleNumber: customer.vehicleNumber,
+                            });
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSavePersonal}
+                          disabled={savingPersonal}
+                        >
+                          {savingPersonal ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Phone className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="font-medium">{customer.phone}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Mail className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Email</p>
-                      <p className="font-medium">{customer.email}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <MapPin className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Address</p>
-                      <p className="font-medium">{customer.address}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">ID Proof</p>
-                      <p className="font-medium">
-                        {customer.idType} {customer.idValue && `- ${customer.idValue}`}
-                      </p>
-                      {customer.idProofUrl && (
-                        <a
-                          href={customer.idProofUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline"
+                  {editingPersonal ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Name</Label>
+                        <Input
+                          value={personalForm.name}
+                          onChange={(e) =>
+                            setPersonalForm({ ...personalForm, name: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Age</Label>
+                        <Input
+                          type="number"
+                          value={personalForm.age}
+                          onChange={(e) =>
+                            setPersonalForm({ ...personalForm, age: parseInt(e.target.value) })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Phone</Label>
+                        <Input
+                          value={personalForm.phone}
+                          onChange={(e) =>
+                            setPersonalForm({ ...personalForm, phone: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Email</Label>
+                        <Input
+                          type="email"
+                          value={personalForm.email}
+                          onChange={(e) =>
+                            setPersonalForm({ ...personalForm, email: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Address</Label>
+                        <Textarea
+                          value={personalForm.address}
+                          onChange={(e) =>
+                            setPersonalForm({ ...personalForm, address: e.target.value })
+                          }
+                          rows={3}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>ID Type</Label>
+                        <Select
+                          value={personalForm.idType}
+                          onValueChange={(value) =>
+                            setPersonalForm({ ...personalForm, idType: value })
+                          }
                         >
-                          View ID Proof
-                        </a>
-                      )}
-                    </div>
-                  </div>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Aadhar">Aadhar Card</SelectItem>
+                            <SelectItem value="PAN">PAN Card</SelectItem>
+                            <SelectItem value="Driving License">Driving License</SelectItem>
+                            <SelectItem value="Passport">Passport</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>ID Number</Label>
+                        <Input
+                          value={personalForm.idValue}
+                          onChange={(e) =>
+                            setPersonalForm({ ...personalForm, idValue: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vehicle Number</Label>
+                        <Input
+                          value={personalForm.vehicleNumber}
+                          onChange={(e) =>
+                            setPersonalForm({ ...personalForm, vehicleNumber: e.target.value })
+                          }
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <Phone className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Phone</p>
+                          <p className="font-medium">{customer.phone}</p>
+                        </div>
+                      </div>
 
-                  <div className="flex items-center gap-3">
-                    <Car className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Vehicle Number</p>
-                      <p className="font-medium">{customer.vehicleNumber}</p>
-                    </div>
-                  </div>
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Email</p>
+                          <p className="font-medium">{customer.email}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <MapPin className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Address</p>
+                          <p className="font-medium">{customer.address}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">ID Proof</p>
+                          <p className="font-medium">
+                            {customer.idType} {customer.idValue && `- ${customer.idValue}`}
+                          </p>
+                          {customer.idProofUrl && (
+                            <a
+                              href={customer.idProofUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline"
+                            >
+                              View ID Proof
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <Car className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Vehicle Number</p>
+                          <p className="font-medium">{customer.vehicleNumber}</p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
               {/* Booking Information */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Booking Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Check-In</p>
-                      <p className="font-medium">
-                        {toDate(customer.checkIn).toLocaleDateString("en-IN", {
-                          weekday: "short",
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        at {customer.checkInTime}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Check-Out</p>
-                      <p className="font-medium">
-                        {toDate(customer.checkOut).toLocaleDateString("en-IN", {
-                          weekday: "short",
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        at {customer.checkOutTime}
-                      </p>
-                    </div>
-                  </div>
-
-                  {customer.instructions && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Special Instructions
-                      </p>
-                      <p className="text-sm bg-slate-50 p-3 rounded-lg">
-                        {customer.instructions}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="pt-4 border-t space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Stay Charges:</span>
-                      <span className="font-medium">
-                        ₹{customer.stayCharges.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Cuisine Charges:</span>
-                      <span className="font-medium">
-                        ₹{customer.cuisineCharges.toLocaleString()}
-                      </span>
-                    </div>
-                    {customer.extraChargesTotal > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Extra Charges:</span>
-                        <span className="font-medium">
-                          ₹{customer.extraChargesTotal.toLocaleString()}
-                        </span>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">Booking Information</CardTitle>
+                    {!editingBooking ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingBooking(true)}
+                      >
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingBooking(false);
+                            setBookingForm({
+                              checkIn: toDate(customer.checkIn).toISOString().split("T")[0],
+                              checkOut: toDate(customer.checkOut).toISOString().split("T")[0],
+                              checkInTime: customer.checkInTime,
+                              checkOutTime: customer.checkOutTime,
+                              instructions: customer.instructions || "",
+                              stayCharges: customer.stayCharges,
+                              cuisineCharges: customer.cuisineCharges,
+                            });
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSaveBooking}
+                          disabled={savingBooking}
+                        >
+                          {savingBooking ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4" />
+                          )}
+                        </Button>
                       </div>
                     )}
                   </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {editingBooking ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Check-In Date</Label>
+                        <Input
+                          type="date"
+                          value={bookingForm.checkIn}
+                          onChange={(e) =>
+                            setBookingForm({ ...bookingForm, checkIn: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Check-In Time</Label>
+                        <Input
+                          type="time"
+                          value={bookingForm.checkInTime}
+                          onChange={(e) =>
+                            setBookingForm({ ...bookingForm, checkInTime: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Check-Out Date</Label>
+                        <Input
+                          type="date"
+                          value={bookingForm.checkOut}
+                          onChange={(e) =>
+                            setBookingForm({ ...bookingForm, checkOut: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Check-Out Time</Label>
+                        <Input
+                          type="time"
+                          value={bookingForm.checkOutTime}
+                          onChange={(e) =>
+                            setBookingForm({ ...bookingForm, checkOutTime: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Stay Charges (₹)</Label>
+                        <Input
+                          type="number"
+                          value={bookingForm.stayCharges}
+                          onChange={(e) =>
+                            setBookingForm({
+                              ...bookingForm,
+                              stayCharges: parseFloat(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Cuisine Charges (₹)</Label>
+                        <Input
+                          type="number"
+                          value={bookingForm.cuisineCharges}
+                          onChange={(e) =>
+                            setBookingForm({
+                              ...bookingForm,
+                              cuisineCharges: parseFloat(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Special Instructions</Label>
+                        <Textarea
+                          value={bookingForm.instructions}
+                          onChange={(e) =>
+                            setBookingForm({ ...bookingForm, instructions: e.target.value })
+                          }
+                          rows={3}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <Calendar className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Check-In</p>
+                          <p className="font-medium">
+                            {toDate(customer.checkIn).toLocaleDateString("en-IN", {
+                              weekday: "short",
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            at {customer.checkInTime}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <Calendar className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Check-Out</p>
+                          <p className="font-medium">
+                            {toDate(customer.checkOut).toLocaleDateString("en-IN", {
+                              weekday: "short",
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            at {customer.checkOutTime}
+                          </p>
+                        </div>
+                      </div>
+
+                      {customer.instructions && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            Special Instructions
+                          </p>
+                          <p className="text-sm bg-slate-50 p-3 rounded-lg">
+                            {customer.instructions}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="pt-4 border-t space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Stay Charges:</span>
+                          <span className="font-medium">
+                            ₹{customer.stayCharges.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Cuisine Charges:</span>
+                          <span className="font-medium">
+                            ₹{customer.cuisineCharges.toLocaleString()}
+                          </span>
+                        </div>
+                        {customer.extraChargesTotal > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Extra Charges:</span>
+                            <span className="font-medium">
+                              ₹{customer.extraChargesTotal.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -499,6 +915,93 @@ export default function CustomerDetailPage() {
           <TabsContent value="members" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Group Members</h3>
+              <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Member
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Group Member</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="memberName">Name</Label>
+                      <Input
+                        id="memberName"
+                        value={memberForm.name}
+                        onChange={(e) =>
+                          setMemberForm({ ...memberForm, name: e.target.value })
+                        }
+                        placeholder="Member name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="memberAge">Age</Label>
+                      <Input
+                        id="memberAge"
+                        type="number"
+                        value={memberForm.age}
+                        onChange={(e) =>
+                          setMemberForm({ ...memberForm, age: e.target.value })
+                        }
+                        placeholder="Age"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="memberIdType">ID Type</Label>
+                      <Select
+                        value={memberForm.idType}
+                        onValueChange={(value) =>
+                          setMemberForm({ ...memberForm, idType: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Aadhar">Aadhar Card</SelectItem>
+                          <SelectItem value="PAN">PAN Card</SelectItem>
+                          <SelectItem value="Driving License">Driving License</SelectItem>
+                          <SelectItem value="Passport">Passport</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="memberIdValue">ID Number</Label>
+                      <Input
+                        id="memberIdValue"
+                        value={memberForm.idValue}
+                        onChange={(e) =>
+                          setMemberForm({ ...memberForm, idValue: e.target.value })
+                        }
+                        placeholder="1234 5678 9012"
+                      />
+                    </div>
+
+                    <Button
+                      onClick={handleAddMember}
+                      disabled={addingMember}
+                      className="w-full"
+                    >
+                      {addingMember ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        "Add Member"
+                      )}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
 
             {groupMembers.length === 0 ? (
