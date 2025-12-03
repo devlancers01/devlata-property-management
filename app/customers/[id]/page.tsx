@@ -5,13 +5,23 @@ import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   ArrowLeft,
   Phone,
@@ -27,15 +37,20 @@ import {
   Calendar,
   IndianRupee,
   FileText,
-  Edit2,
+  Edit,
+  Trash2,
   Save,
   X,
-  Trash2,
-  Check,
+  Upload,
+  Eye,
+  AlertCircle,
 } from "lucide-react";
 import type { CustomerModel } from "@/models/customer.model";
 import { toast } from "sonner";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { storage } from "@/lib/firebase/config";
 
+// Helper to safely convert to Date
 function toDate(value: any): Date {
   if (value instanceof Date) return value;
   if (value && typeof value === "object" && "toDate" in value) {
@@ -87,50 +102,44 @@ export default function CustomerDetailPage() {
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [savingBooking, setSavingBooking] = useState(false);
 
-  // Form states for editing
-  const [personalForm, setPersonalForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    address: "",
-    age: 0,
-    idType: "",
-    idValue: "",
-    vehicleNumber: "",
-  });
+  // Form states
+  const [personalForm, setPersonalForm] = useState<any>({});
+  const [bookingForm, setBookingForm] = useState<any>({});
 
-  const [bookingForm, setBookingForm] = useState({
-    checkIn: "",
-    checkOut: "",
-    checkInTime: "",
-    checkOutTime: "",
-    instructions: "",
-    stayCharges: 0,
-    cuisineCharges: 0,
-  });
+  // File upload states
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [idProofFile, setIdProofFile] = useState<File | null>(null);
+  const [idProofPreview, setIdProofPreview] = useState<string>("");
 
-  // Payment Dialog State
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMode, setPaymentMode] = useState("cash");
-  const [paymentNotes, setPaymentNotes] = useState("");
-  const [addingPayment, setAddingPayment] = useState(false);
-
-  // Extra Charge Dialog State
-  const [chargeDialogOpen, setChargeDialogOpen] = useState(false);
-  const [chargeDescription, setChargeDescription] = useState("");
-  const [chargeAmount, setChargeAmount] = useState("");
-  const [addingCharge, setAddingCharge] = useState(false);
-
-  // Member Dialog State
+  // Member dialog states
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
-  const [memberForm, setMemberForm] = useState({
-    name: "",
-    age: "",
-    idType: "Aadhar",
-    idValue: "",
-  });
-  const [addingMember, setAddingMember] = useState(false);
+  const [editingMember, setEditingMember] = useState<GroupMember | null>(null);
+  const [memberForm, setMemberForm] = useState<any>({});
+  const [memberIdProofFile, setMemberIdProofFile] = useState<File | null>(null);
+  const [memberIdProofPreview, setMemberIdProofPreview] = useState<string>("");
+  const [savingMember, setSavingMember] = useState(false);
+
+  // Payment dialog states
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [paymentForm, setPaymentForm] = useState<any>({});
+  const [paymentReceiptFile, setPaymentReceiptFile] = useState<File | null>(null);
+  const [paymentReceiptPreview, setPaymentReceiptPreview] = useState<string>("");
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  // Charge dialog states
+  const [chargeDialogOpen, setChargeDialogOpen] = useState(false);
+  const [editingCharge, setEditingCharge] = useState<ExtraCharge | null>(null);
+  const [chargeForm, setChargeForm] = useState<any>({});
+  const [savingCharge, setSavingCharge] = useState(false);
+
+  // Delete confirmation states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ type: string; id: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Conflict warning
+  const [conflictWarning, setConflictWarning] = useState<string>("");
 
   useEffect(() => {
     fetchCustomerDetails();
@@ -140,41 +149,24 @@ export default function CustomerDetailPage() {
     try {
       setLoading(true);
 
+      // Fetch customer
       const customerRes = await fetch(`/api/customers/${customerId}`);
       const customerData = await customerRes.json();
-      const cust = customerData.customer;
-      setCustomer(cust);
+      setCustomer(customerData.customer);
+      setPersonalForm(customerData.customer);
+      setBookingForm(customerData.customer);
 
-      // Set form values
-      setPersonalForm({
-        name: cust.name,
-        phone: cust.phone,
-        email: cust.email,
-        address: cust.address,
-        age: cust.age,
-        idType: cust.idType,
-        idValue: cust.idValue || "",
-        vehicleNumber: cust.vehicleNumber,
-      });
-
-      setBookingForm({
-        checkIn: toDate(cust.checkIn).toISOString().split("T")[0],
-        checkOut: toDate(cust.checkOut).toISOString().split("T")[0],
-        checkInTime: cust.checkInTime,
-        checkOutTime: cust.checkOutTime,
-        instructions: cust.instructions || "",
-        stayCharges: cust.stayCharges,
-        cuisineCharges: cust.cuisineCharges,
-      });
-
+      // Fetch group members
       const membersRes = await fetch(`/api/customers/${customerId}/members`);
       const membersData = await membersRes.json();
       setGroupMembers(membersData.members || []);
 
+      // Fetch payments
       const paymentsRes = await fetch(`/api/customers/${customerId}/payments`);
       const paymentsData = await paymentsRes.json();
       setPayments(paymentsData.payments || []);
 
+      // Fetch extra charges
       const chargesRes = await fetch(`/api/customers/${customerId}/charges`);
       const chargesData = await chargesRes.json();
       setExtraCharges(chargesData.charges || []);
@@ -186,161 +178,441 @@ export default function CustomerDetailPage() {
     }
   };
 
-  const handleSavePersonal = async () => {
-    setSavingPersonal(true);
-    try {
-      const res = await fetch(`/api/customers/${customerId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(personalForm),
-      });
+  // Calculate totals in real-time
+  const calculateTotals = () => {
+    if (!customer) return { total: 0, received: 0, balance: 0 };
 
-      if (!res.ok) throw new Error("Failed to update");
+    const stayCharges = bookingForm.stayCharges || customer.stayCharges || 0;
+    const cuisineCharges = bookingForm.cuisineCharges || customer.cuisineCharges || 0;
+    const extraChargesTotal = extraCharges.reduce((sum, charge) => sum + charge.amount, 0);
+    const totalAmount = stayCharges + cuisineCharges + extraChargesTotal;
+    const receivedAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const balanceAmount = totalAmount - receivedAmount;
 
-      toast.success("Personal information updated!");
-      setEditingPersonal(false);
-      fetchCustomerDetails();
-    } catch (error) {
-      toast.error("Failed to update personal information");
-    } finally {
-      setSavingPersonal(false);
-    }
+    return {
+      total: totalAmount,
+      received: receivedAmount,
+      balance: balanceAmount,
+    };
   };
 
-  const handleSaveBooking = async () => {
-    setSavingBooking(true);
+  const totals = calculateTotals();
+
+  // Check for booking conflicts
+  const checkConflicts = async (checkIn: Date, checkOut: Date) => {
     try {
-      const res = await fetch(`/api/customers/${customerId}`, {
-        method: "PATCH",
+      const res = await fetch("/api/customers/conflicts", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...bookingForm,
-          checkIn: new Date(bookingForm.checkIn).toISOString(),
-          checkOut: new Date(bookingForm.checkOut).toISOString(),
+          checkIn: checkIn.toISOString(),
+          checkOut: checkOut.toISOString(),
+          excludeCustomerId: customerId,
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to update");
+      const data = await res.json();
 
-      toast.success("Booking information updated!");
-      setEditingBooking(false);
+      if (data.hasConflict) {
+        setConflictWarning(
+          `⚠️ Booking conflict! ${data.conflictingBookings.length} existing booking(s) overlap with these dates.`
+        );
+      } else {
+        setConflictWarning("");
+      }
+    } catch (error) {
+      console.error("Error checking conflicts:", error);
+    }
+  };
+
+  // File upload helper
+  const uploadFile = async (file: File, folder: string): Promise<string> => {
+    const fileName = `${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, `${folder}/${fileName}`);
+    await uploadBytes(storageRef, file);
+    return await getDownloadURL(storageRef);
+  };
+
+  // Delete file helper
+  const deleteFile = async (url: string) => {
+    try {
+      const fileRef = ref(storage, url);
+      await deleteObject(fileRef);
+    } catch (error) {
+      console.error("Error deleting file:", error);
+    }
+  };
+
+  // Handle file change
+  const handleFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setFile: (file: File | null) => void,
+    setPreview: (preview: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5MB");
+      return;
+    }
+
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Only JPG, PNG, or PDF files are allowed");
+      return;
+    }
+
+    setFile(file);
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onloadend = () => setPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setPreview("");
+    }
+  };
+
+  // Save Personal Information
+  const savePersonalInfo = async () => {
+    setSavingPersonal(true);
+    try {
+      let idProofUrl = personalForm.idProofUrl;
+
+      // Upload new ID proof if selected
+      if (idProofFile) {
+        setUploadingFile(true);
+        // Delete old file if exists
+        if (personalForm.idProofUrl) {
+          await deleteFile(personalForm.idProofUrl);
+        }
+        idProofUrl = await uploadFile(idProofFile, "id-proofs");
+        setUploadingFile(false);
+      }
+
+      const updateData = {
+        name: personalForm.name,
+        age: personalForm.age,
+        phone: personalForm.phone,
+        email: personalForm.email,
+        address: personalForm.address,
+        idType: personalForm.idType,
+        idValue: personalForm.idValue || "",
+        idProofUrl: idProofUrl || "",
+        vehicleNumber: personalForm.vehicleNumber,
+      };
+
+      const res = await fetch(`/api/customers/${customerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!res.ok) throw new Error("Failed to update personal information");
+
+      toast.success("Personal information updated successfully!");
+      setEditingPersonal(false);
+      setIdProofFile(null);
+      setIdProofPreview("");
       fetchCustomerDetails();
     } catch (error) {
+      console.error("Error saving personal info:", error);
+      toast.error("Failed to update personal information");
+    } finally {
+      setSavingPersonal(false);
+      setUploadingFile(false);
+    }
+  };
+
+  // Save Booking Information
+  const saveBookingInfo = async () => {
+    // Validate dates
+    const checkIn = new Date(bookingForm.checkIn);
+    const checkOut = new Date(bookingForm.checkOut);
+
+    if (checkOut <= checkIn) {
+      toast.error("Check-out date must be after check-in date");
+      return;
+    }
+
+    setSavingBooking(true);
+    try {
+      const updateData = {
+        checkIn: checkIn.toISOString(),
+        checkOut: checkOut.toISOString(),
+        checkInTime: bookingForm.checkInTime,
+        checkOutTime: bookingForm.checkOutTime,
+        instructions: bookingForm.instructions || "",
+        stayCharges: parseFloat(bookingForm.stayCharges) || 0,
+        cuisineCharges: parseFloat(bookingForm.cuisineCharges) || 0,
+        advancePaymentMode: bookingForm.advancePaymentMode || "",
+      };
+
+      const res = await fetch(`/api/customers/${customerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!res.ok) throw new Error("Failed to update booking information");
+
+      toast.success("Booking information updated successfully!");
+      setEditingBooking(false);
+      setConflictWarning("");
+      fetchCustomerDetails();
+    } catch (error) {
+      console.error("Error saving booking info:", error);
       toast.error("Failed to update booking information");
     } finally {
       setSavingBooking(false);
     }
   };
 
-  const handleAddPayment = async () => {
-    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-      toast.error("Please enter a valid payment amount");
-      return;
+  // Member CRUD Operations
+  const openMemberDialog = (member?: GroupMember) => {
+    if (member) {
+      setEditingMember(member);
+      setMemberForm(member);
+      setMemberIdProofPreview(member.idProofUrl || "");
+    } else {
+      setEditingMember(null);
+      setMemberForm({ name: "", age: "", idType: "Aadhar", idValue: "" });
+      setMemberIdProofPreview("");
     }
-
-    setAddingPayment(true);
-
-    try {
-      const paymentData: any = {
-        amount: parseFloat(paymentAmount),
-        mode: paymentMode,
-      };
-
-      if (paymentNotes) paymentData.notes = paymentNotes;
-
-      const res = await fetch(`/api/customers/${customerId}/payments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(paymentData),
-      });
-
-      if (!res.ok) throw new Error("Failed to add payment");
-
-      toast.success("Payment added successfully!");
-      setPaymentDialogOpen(false);
-      setPaymentAmount("");
-      setPaymentNotes("");
-      fetchCustomerDetails();
-    } catch (error) {
-      console.error("Error adding payment:", error);
-      toast.error("Failed to add payment");
-    } finally {
-      setAddingPayment(false);
-    }
+    setMemberIdProofFile(null);
+    setMemberDialogOpen(true);
   };
 
-  const handleAddCharge = async () => {
-    if (!chargeDescription || !chargeAmount || parseFloat(chargeAmount) <= 0) {
-      toast.error("Please fill all charge details");
-      return;
-    }
-
-    setAddingCharge(true);
-
-    try {
-      const res = await fetch(`/api/customers/${customerId}/charges`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: chargeDescription,
-          amount: parseFloat(chargeAmount),
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to add charge");
-
-      toast.success("Extra charge added successfully!");
-      setChargeDialogOpen(false);
-      setChargeDescription("");
-      setChargeAmount("");
-      fetchCustomerDetails();
-    } catch (error) {
-      console.error("Error adding charge:", error);
-      toast.error("Failed to add charge");
-    } finally {
-      setAddingCharge(false);
-    }
-  };
-
-  const handleAddMember = async () => {
+  const saveMember = async () => {
     if (!memberForm.name || !memberForm.age || !memberForm.idType) {
       toast.error("Please fill all required fields");
       return;
     }
 
-    if (!memberForm.idValue) {
-      toast.error("ID number is required");
+    if (!memberForm.idValue && !memberForm.idProofUrl && !memberIdProofFile) {
+      toast.error("Either ID number or ID proof image is required");
       return;
     }
 
-    setAddingMember(true);
-
+    setSavingMember(true);
     try {
-      const memberData: any = {
+      let idProofUrl = memberForm.idProofUrl;
+
+      // Upload new ID proof if selected
+      if (memberIdProofFile) {
+        if (memberForm.idProofUrl) {
+          await deleteFile(memberForm.idProofUrl);
+        }
+        idProofUrl = await uploadFile(memberIdProofFile, "id-proofs");
+      }
+
+      const memberData = {
         name: memberForm.name,
         age: parseInt(memberForm.age),
         idType: memberForm.idType,
+        idValue: memberForm.idValue || "",
+        idProofUrl: idProofUrl || "",
       };
 
-      if (memberForm.idValue) memberData.idValue = memberForm.idValue;
+      if (editingMember) {
+        // Update member
+        const res = await fetch(`/api/customers/${customerId}/members/${editingMember.uid}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(memberData),
+        });
 
-      const res = await fetch(`/api/customers/${customerId}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(memberData),
-      });
+        if (!res.ok) throw new Error("Failed to update member");
+        toast.success("Member updated successfully!");
+      } else {
+        // Add new member
+        const res = await fetch(`/api/customers/${customerId}/members`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(memberData),
+        });
 
-      if (!res.ok) throw new Error("Failed to add member");
+        if (!res.ok) throw new Error("Failed to add member");
+        toast.success("Member added successfully!");
+      }
 
-      toast.success("Group member added successfully!");
       setMemberDialogOpen(false);
-      setMemberForm({ name: "", age: "", idType: "Aadhar", idValue: "" });
       fetchCustomerDetails();
     } catch (error) {
-      console.error("Error adding member:", error);
-      toast.error("Failed to add group member");
+      console.error("Error saving member:", error);
+      toast.error("Failed to save member");
     } finally {
-      setAddingMember(false);
+      setSavingMember(false);
+    }
+  };
+
+  // Payment CRUD Operations
+  const openPaymentDialog = (payment?: Payment) => {
+    if (payment) {
+      setEditingPayment(payment);
+      setPaymentForm({ ...payment, amount: payment.amount.toString() });
+      setPaymentReceiptPreview(payment.receiptUrl || "");
+    } else {
+      setEditingPayment(null);
+      setPaymentForm({ amount: "", mode: "cash", notes: "" });
+      setPaymentReceiptPreview("");
+    }
+    setPaymentReceiptFile(null);
+    setPaymentDialogOpen(true);
+  };
+
+  const savePayment = async () => {
+    if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    setSavingPayment(true);
+    try {
+      let receiptUrl = paymentForm.receiptUrl;
+
+      // Upload new receipt if selected
+      if (paymentReceiptFile) {
+        if (paymentForm.receiptUrl) {
+          await deleteFile(paymentForm.receiptUrl);
+        }
+        receiptUrl = await uploadFile(paymentReceiptFile, "receipts");
+      }
+
+      const paymentData = {
+        amount: parseFloat(paymentForm.amount),
+        mode: paymentForm.mode,
+        notes: paymentForm.notes || "",
+        receiptUrl: receiptUrl || "",
+      };
+
+      if (editingPayment) {
+        // Update payment
+        const res = await fetch(
+          `/api/customers/${customerId}/payments/${editingPayment.uid}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(paymentData),
+          }
+        );
+
+        if (!res.ok) throw new Error("Failed to update payment");
+        toast.success("Payment updated successfully!");
+      } else {
+        // Add new payment
+        const res = await fetch(`/api/customers/${customerId}/payments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(paymentData),
+        });
+
+        if (!res.ok) throw new Error("Failed to add payment");
+        toast.success("Payment added successfully!");
+      }
+
+      setPaymentDialogOpen(false);
+      fetchCustomerDetails();
+    } catch (error) {
+      console.error("Error saving payment:", error);
+      toast.error("Failed to save payment");
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  // Charge CRUD Operations
+  const openChargeDialog = (charge?: ExtraCharge) => {
+    if (charge) {
+      setEditingCharge(charge);
+      setChargeForm({ ...charge, amount: charge.amount.toString() });
+    } else {
+      setEditingCharge(null);
+      setChargeForm({ description: "", amount: "" });
+    }
+    setChargeDialogOpen(true);
+  };
+
+  const saveCharge = async () => {
+    if (!chargeForm.description || !chargeForm.amount || parseFloat(chargeForm.amount) <= 0) {
+      toast.error("Please fill all fields with valid values");
+      return;
+    }
+
+    setSavingCharge(true);
+    try {
+      const chargeData = {
+        description: chargeForm.description,
+        amount: parseFloat(chargeForm.amount),
+      };
+
+      if (editingCharge) {
+        // Update charge
+        const res = await fetch(`/api/customers/${customerId}/charges/${editingCharge.uid}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(chargeData),
+        });
+
+        if (!res.ok) throw new Error("Failed to update charge");
+        toast.success("Charge updated successfully!");
+      } else {
+        // Add new charge
+        const res = await fetch(`/api/customers/${customerId}/charges`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(chargeData),
+        });
+
+        if (!res.ok) throw new Error("Failed to add charge");
+        toast.success("Charge added successfully!");
+      }
+
+      setChargeDialogOpen(false);
+      fetchCustomerDetails();
+    } catch (error) {
+      console.error("Error saving charge:", error);
+      toast.error("Failed to save charge");
+    } finally {
+      setSavingCharge(false);
+    }
+  };
+
+  // Delete Operations
+  const confirmDelete = (type: string, id: string) => {
+    setItemToDelete({ type, id });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+
+    setDeleting(true);
+    try {
+      const { type, id } = itemToDelete;
+      let endpoint = "";
+
+      if (type === "member") {
+        endpoint = `/api/customers/${customerId}/members/${id}`;
+      } else if (type === "payment") {
+        endpoint = `/api/customers/${customerId}/payments/${id}`;
+      } else if (type === "charge") {
+        endpoint = `/api/customers/${customerId}/charges/${id}`;
+      }
+
+      const res = await fetch(endpoint, { method: "DELETE" });
+
+      if (!res.ok) throw new Error(`Failed to delete ${type}`);
+
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully!`);
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
+      fetchCustomerDetails();
+    } catch (error) {
+      console.error("Error deleting:", error);
+      toast.error(`Failed to delete ${itemToDelete.type}`);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -396,11 +668,7 @@ export default function CustomerDetailPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => router.push("/customers")}
-            >
+            <Button variant="ghost" size="icon" onClick={() => router.push("/customers")}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
@@ -429,7 +697,7 @@ export default function CustomerDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Total Amount</p>
-                  <p className="text-lg font-bold">₹{customer.totalAmount.toLocaleString()}</p>
+                  <p className="text-lg font-bold">₹{totals.total.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -444,7 +712,7 @@ export default function CustomerDetailPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">Received</p>
                   <p className="text-lg font-bold text-green-600">
-                    ₹{customer.receivedAmount.toLocaleString()}
+                    ₹{totals.received.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -454,13 +722,25 @@ export default function CustomerDetailPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${customer.balanceAmount > 0 ? "bg-red-100" : "bg-green-100"}`}>
-                  <IndianRupee className={`w-5 h-5 ${customer.balanceAmount > 0 ? "text-red-600" : "text-green-600"}`} />
+                <div
+                  className={`p-2 rounded-lg ${
+                    totals.balance > 0 ? "bg-red-100" : "bg-green-100"
+                  }`}
+                >
+                  <IndianRupee
+                    className={`w-5 h-5 ${
+                      totals.balance > 0 ? "text-red-600" : "text-green-600"
+                    }`}
+                  />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Balance</p>
-                  <p className={`text-lg font-bold ${customer.balanceAmount > 0 ? "text-red-600" : "text-green-600"}`}>
-                    ₹{customer.balanceAmount.toLocaleString()}
+                  <p
+                    className={`text-lg font-bold ${
+                      totals.balance > 0 ? "text-red-600" : "text-green-600"
+                    }`}
+                  >
+                    ₹{totals.balance.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -477,7 +757,8 @@ export default function CustomerDetailPage() {
                   <p className="text-xs text-muted-foreground">Duration</p>
                   <p className="text-lg font-bold">
                     {Math.ceil(
-                      (toDate(customer.checkOut).getTime() - toDate(customer.checkIn).getTime()) /
+                      (toDate(customer.checkOut).getTime() -
+                        toDate(customer.checkIn).getTime()) /
                         (1000 * 60 * 60 * 24)
                     )}{" "}
                     days
@@ -492,15 +773,9 @@ export default function CustomerDetailPage() {
         <Tabs defaultValue="details" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 lg:w-auto">
             <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="members">
-              Members ({groupMembers.length})
-            </TabsTrigger>
-            <TabsTrigger value="payments">
-              Payments ({payments.length})
-            </TabsTrigger>
-            <TabsTrigger value="charges">
-              Charges ({extraCharges.length})
-            </TabsTrigger>
+            <TabsTrigger value="members">Members ({groupMembers.length})</TabsTrigger>
+            <TabsTrigger value="payments">Payments ({payments.length})</TabsTrigger>
+            <TabsTrigger value="charges">Charges ({extraCharges.length})</TabsTrigger>
           </TabsList>
 
           {/* Details Tab */}
@@ -513,43 +788,44 @@ export default function CustomerDetailPage() {
                     <CardTitle className="text-lg">Personal Information</CardTitle>
                     {!editingPersonal ? (
                       <Button
-                        size="sm"
                         variant="outline"
+                        size="sm"
                         onClick={() => setEditingPersonal(true)}
                       >
-                        <Edit2 className="w-4 h-4 mr-2" />
+                        <Edit className="w-4 h-4 mr-2" />
                         Edit
                       </Button>
                     ) : (
                       <div className="flex gap-2">
                         <Button
-                          size="sm"
                           variant="outline"
+                          size="sm"
                           onClick={() => {
                             setEditingPersonal(false);
-                            setPersonalForm({
-                              name: customer.name,
-                              phone: customer.phone,
-                              email: customer.email,
-                              address: customer.address,
-                              age: customer.age,
-                              idType: customer.idType,
-                              idValue: customer.idValue || "",
-                              vehicleNumber: customer.vehicleNumber,
-                            });
+                            setPersonalForm(customer);
+                            setIdProofFile(null);
+                            setIdProofPreview("");
                           }}
+                          disabled={savingPersonal}
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-4 h-4 mr-2" />
+                          Cancel
                         </Button>
                         <Button
                           size="sm"
-                          onClick={handleSavePersonal}
-                          disabled={savingPersonal}
+                          onClick={savePersonalInfo}
+                          disabled={savingPersonal || uploadingFile}
                         >
-                          {savingPersonal ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                          {savingPersonal || uploadingFile ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
                           ) : (
-                            <Save className="w-4 h-4" />
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Save
+                            </>
                           )}
                         </Button>
                       </div>
@@ -560,55 +836,64 @@ export default function CustomerDetailPage() {
                   {editingPersonal ? (
                     <>
                       <div className="space-y-2">
-                        <Label>Name</Label>
+                        <Label>Name *</Label>
                         <Input
-                          value={personalForm.name}
+                          value={personalForm.name || ""}
                           onChange={(e) =>
                             setPersonalForm({ ...personalForm, name: e.target.value })
                           }
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Age</Label>
-                        <Input
-                          type="number"
-                          value={personalForm.age}
-                          onChange={(e) =>
-                            setPersonalForm({ ...personalForm, age: parseInt(e.target.value) })
-                          }
-                        />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Age *</Label>
+                          <Input
+                            type="number"
+                            value={personalForm.age || ""}
+                            onChange={(e) =>
+                              setPersonalForm({
+                                ...personalForm,
+                                age: parseInt(e.target.value),
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Phone *</Label>
+                          <Input
+                            value={personalForm.phone || ""}
+                            onChange={(e) =>
+                              setPersonalForm({ ...personalForm, phone: e.target.value })
+                            }
+                          />
+                        </div>
                       </div>
+
                       <div className="space-y-2">
-                        <Label>Phone</Label>
-                        <Input
-                          value={personalForm.phone}
-                          onChange={(e) =>
-                            setPersonalForm({ ...personalForm, phone: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Email</Label>
+                        <Label>Email *</Label>
                         <Input
                           type="email"
-                          value={personalForm.email}
+                          value={personalForm.email || ""}
                           onChange={(e) =>
                             setPersonalForm({ ...personalForm, email: e.target.value })
                           }
                         />
                       </div>
+
                       <div className="space-y-2">
-                        <Label>Address</Label>
+                        <Label>Address *</Label>
                         <Textarea
-                          value={personalForm.address}
+                          value={personalForm.address || ""}
                           onChange={(e) =>
                             setPersonalForm({ ...personalForm, address: e.target.value })
                           }
                           rows={3}
                         />
                       </div>
+
                       <div className="space-y-2">
-                        <Label>ID Type</Label>
+                        <Label>ID Type *</Label>
                         <Select
                           value={personalForm.idType}
                           onValueChange={(value) =>
@@ -627,53 +912,112 @@ export default function CustomerDetailPage() {
                           </SelectContent>
                         </Select>
                       </div>
+
                       <div className="space-y-2">
                         <Label>ID Number</Label>
                         <Input
-                          value={personalForm.idValue}
+                          value={personalForm.idValue || ""}
                           onChange={(e) =>
                             setPersonalForm({ ...personalForm, idValue: e.target.value })
                           }
+                          placeholder="Optional if uploading ID proof"
                         />
                       </div>
+
                       <div className="space-y-2">
-                        <Label>Vehicle Number</Label>
+                        <Label>ID Proof</Label>
+                        {personalForm.idProofUrl && !idProofFile && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <a
+                              href={personalForm.idProofUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary hover:underline flex items-center gap-1"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View Current ID Proof
+                            </a>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setPersonalForm({ ...personalForm, idProofUrl: "" });
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-600" />
+                            </Button>
+                          </div>
+                        )}
+                        <div className="border-2 border-dashed rounded-lg p-4">
+                          <input
+                            type="file"
+                            id="idProof"
+                            accept="image/*,.pdf"
+                            onChange={(e) =>
+                              handleFileChange(e, setIdProofFile, setIdProofPreview)
+                            }
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor="idProof"
+                            className="cursor-pointer flex flex-col items-center gap-2"
+                          >
+                            <Upload className="w-8 h-8 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              Upload new ID proof
+                            </span>
+                          </label>
+                        </div>
+                        {idProofPreview && (
+                          <img
+                            src={idProofPreview}
+                            alt="ID Preview"
+                            className="mt-2 max-w-full h-32 object-contain rounded border"
+                          />
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Vehicle Number *</Label>
                         <Input
-                          value={personalForm.vehicleNumber}
+                          value={personalForm.vehicleNumber || ""}
                           onChange={(e) =>
-                            setPersonalForm({ ...personalForm, vehicleNumber: e.target.value })
+                            setPersonalForm({
+                              ...personalForm,
+                              vehicleNumber: e.target.value,
+                            })
                           }
                         />
                       </div>
                     </>
                   ) : (
                     <>
-                      <div className="flex items-center gap-3">
-                        <Phone className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-start gap-3">
+                        <Phone className="w-5 h-5 text-muted-foreground mt-1" />
                         <div>
                           <p className="text-xs text-muted-foreground">Phone</p>
                           <p className="font-medium">{customer.phone}</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <Mail className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-start gap-3">
+                        <Mail className="w-5 h-5 text-muted-foreground mt-1" />
                         <div>
                           <p className="text-xs text-muted-foreground">Email</p>
                           <p className="font-medium">{customer.email}</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <MapPin className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-start gap-3">
+                        <MapPin className="w-5 h-5 text-muted-foreground mt-1" />
                         <div>
                           <p className="text-xs text-muted-foreground">Address</p>
                           <p className="font-medium">{customer.address}</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <FileText className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-start gap-3">
+                        <FileText className="w-5 h-5 text-muted-foreground mt-1" />
                         <div>
                           <p className="text-xs text-muted-foreground">ID Proof</p>
                           <p className="font-medium">
@@ -692,8 +1036,8 @@ export default function CustomerDetailPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <Car className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-start gap-3">
+                        <Car className="w-5 h-5 text-muted-foreground mt-1" />
                         <div>
                           <p className="text-xs text-muted-foreground">Vehicle Number</p>
                           <p className="font-medium">{customer.vehicleNumber}</p>
@@ -711,42 +1055,43 @@ export default function CustomerDetailPage() {
                     <CardTitle className="text-lg">Booking Information</CardTitle>
                     {!editingBooking ? (
                       <Button
-                        size="sm"
                         variant="outline"
+                        size="sm"
                         onClick={() => setEditingBooking(true)}
                       >
-                        <Edit2 className="w-4 h-4 mr-2" />
+                        <Edit className="w-4 h-4 mr-2" />
                         Edit
                       </Button>
                     ) : (
                       <div className="flex gap-2">
                         <Button
-                          size="sm"
                           variant="outline"
+                          size="sm"
                           onClick={() => {
                             setEditingBooking(false);
-                            setBookingForm({
-                              checkIn: toDate(customer.checkIn).toISOString().split("T")[0],
-                              checkOut: toDate(customer.checkOut).toISOString().split("T")[0],
-                              checkInTime: customer.checkInTime,
-                              checkOutTime: customer.checkOutTime,
-                              instructions: customer.instructions || "",
-                              stayCharges: customer.stayCharges,
-                              cuisineCharges: customer.cuisineCharges,
-                            });
+                            setBookingForm(customer);
+                            setConflictWarning("");
                           }}
+                          disabled={savingBooking}
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-4 h-4 mr-2" />
+                          Cancel
                         </Button>
                         <Button
                           size="sm"
-                          onClick={handleSaveBooking}
+                          onClick={saveBookingInfo}
                           disabled={savingBooking}
                         >
                           {savingBooking ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
                           ) : (
-                            <Save className="w-4 h-4" />
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Save
+                            </>
                           )}
                         </Button>
                       </div>
@@ -756,87 +1101,155 @@ export default function CustomerDetailPage() {
                 <CardContent className="space-y-4">
                   {editingBooking ? (
                     <>
-                      <div className="space-y-2">
-                        <Label>Check-In Date</Label>
-                        <Input
-                          type="date"
-                          value={bookingForm.checkIn}
-                          onChange={(e) =>
-                            setBookingForm({ ...bookingForm, checkIn: e.target.value })
-                          }
-                        />
+                      {conflictWarning && (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex gap-2">
+                          <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0" />
+                          <p className="text-sm text-yellow-800">{conflictWarning}</p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Check-In Date *</Label>
+                          <Input
+                            type="date"
+                            value={
+                              bookingForm.checkIn
+                                ? new Date(bookingForm.checkIn).toISOString().split("T")[0]
+                                : ""
+                            }
+                            onChange={(e) => {
+                              setBookingForm({
+                                ...bookingForm,
+                                checkIn: new Date(e.target.value),
+                              });
+                              if (bookingForm.checkOut) {
+                                checkConflicts(new Date(e.target.value), bookingForm.checkOut);
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Check-In Time</Label>
+                          <Input
+                            type="time"
+                            value={bookingForm.checkInTime || ""}
+                            onChange={(e) =>
+                              setBookingForm({
+                                ...bookingForm,
+                                checkInTime: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Check-In Time</Label>
-                        <Input
-                          type="time"
-                          value={bookingForm.checkInTime}
-                          onChange={(e) =>
-                            setBookingForm({ ...bookingForm, checkInTime: e.target.value })
-                          }
-                        />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Check-Out Date *</Label>
+                          <Input
+                            type="date"
+                            value={
+                              bookingForm.checkOut
+                                ? new Date(bookingForm.checkOut).toISOString().split("T")[0]
+                                : ""
+                            }
+                            onChange={(e) => {
+                              setBookingForm({
+                                ...bookingForm,
+                                checkOut: new Date(e.target.value),
+                              });
+                              if (bookingForm.checkIn) {
+                                checkConflicts(bookingForm.checkIn, new Date(e.target.value));
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Check-Out Time</Label>
+                          <Input
+                            type="time"
+                            value={bookingForm.checkOutTime || ""}
+                            onChange={(e) =>
+                              setBookingForm({
+                                ...bookingForm,
+                                checkOutTime: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Check-Out Date</Label>
-                        <Input
-                          type="date"
-                          value={bookingForm.checkOut}
-                          onChange={(e) =>
-                            setBookingForm({ ...bookingForm, checkOut: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Check-Out Time</Label>
-                        <Input
-                          type="time"
-                          value={bookingForm.checkOutTime}
-                          onChange={(e) =>
-                            setBookingForm({ ...bookingForm, checkOutTime: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Stay Charges (₹)</Label>
-                        <Input
-                          type="number"
-                          value={bookingForm.stayCharges}
-                          onChange={(e) =>
-                            setBookingForm({
-                              ...bookingForm,
-                              stayCharges: parseFloat(e.target.value),
-                            })
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Cuisine Charges (₹)</Label>
-                        <Input
-                          type="number"
-                          value={bookingForm.cuisineCharges}
-                          onChange={(e) =>
-                            setBookingForm({
-                              ...bookingForm,
-                              cuisineCharges: parseFloat(e.target.value),
-                            })
-                          }
-                        />
-                      </div>
+
                       <div className="space-y-2">
                         <Label>Special Instructions</Label>
                         <Textarea
-                          value={bookingForm.instructions}
+                          value={bookingForm.instructions || ""}
                           onChange={(e) =>
-                            setBookingForm({ ...bookingForm, instructions: e.target.value })
+                            setBookingForm({
+                              ...bookingForm,
+                              instructions: e.target.value,
+                            })
                           }
                           rows={3}
+                          placeholder="Any special requests..."
                         />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Stay Charges (₹) *</Label>
+                          <Input
+                            type="number"
+                            value={bookingForm.stayCharges || ""}
+                            onChange={(e) =>
+                              setBookingForm({
+                                ...bookingForm,
+                                stayCharges: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Cuisine Charges (₹)</Label>
+                          <Input
+                            type="number"
+                            value={bookingForm.cuisineCharges || ""}
+                            onChange={(e) =>
+                              setBookingForm({
+                                ...bookingForm,
+                                cuisineCharges: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Advance Payment Mode</Label>
+                        <Select
+                          value={bookingForm.advancePaymentMode || ""}
+                          onValueChange={(value) =>
+                            setBookingForm({
+                              ...bookingForm,
+                              advancePaymentMode: value,
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select payment mode" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cash">Cash</SelectItem>
+                            <SelectItem value="UPI">UPI</SelectItem>
+                            <SelectItem value="bank">Bank Transfer</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </>
                   ) : (
                     <>
-                      <div className="flex items-center gap-3">
-                        <Calendar className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-5 h-5 text-muted-foreground mt-1" />
                         <div>
                           <p className="text-xs text-muted-foreground">Check-In</p>
                           <p className="font-medium">
@@ -853,8 +1266,8 @@ export default function CustomerDetailPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <Calendar className="w-5 h-5 text-muted-foreground" />
+                      <div className="flex items-start gap-3">
+                        <Calendar className="w-5 h-5 text-muted-foreground mt-1" />
                         <div>
                           <p className="text-xs text-muted-foreground">Check-Out</p>
                           <p className="font-medium">
@@ -895,12 +1308,10 @@ export default function CustomerDetailPage() {
                             ₹{customer.cuisineCharges.toLocaleString()}
                           </span>
                         </div>
-                        {customer.extraChargesTotal > 0 && (
+                        {customer.advancePaymentMode && (
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Extra Charges:</span>
-                            <span className="font-medium">
-                              ₹{customer.extraChargesTotal.toLocaleString()}
-                            </span>
+                            <span className="text-muted-foreground">Payment Mode:</span>
+                            <span className="font-medium">{customer.advancePaymentMode}</span>
                           </div>
                         )}
                       </div>
@@ -911,97 +1322,14 @@ export default function CustomerDetailPage() {
             </div>
           </TabsContent>
 
-          {/* Group Members Tab */}
+          {/* Members Tab */}
           <TabsContent value="members" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Group Members</h3>
-              <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Member
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Group Member</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="memberName">Name</Label>
-                      <Input
-                        id="memberName"
-                        value={memberForm.name}
-                        onChange={(e) =>
-                          setMemberForm({ ...memberForm, name: e.target.value })
-                        }
-                        placeholder="Member name"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="memberAge">Age</Label>
-                      <Input
-                        id="memberAge"
-                        type="number"
-                        value={memberForm.age}
-                        onChange={(e) =>
-                          setMemberForm({ ...memberForm, age: e.target.value })
-                        }
-                        placeholder="Age"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="memberIdType">ID Type</Label>
-                      <Select
-                        value={memberForm.idType}
-                        onValueChange={(value) =>
-                          setMemberForm({ ...memberForm, idType: value })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Aadhar">Aadhar Card</SelectItem>
-                          <SelectItem value="PAN">PAN Card</SelectItem>
-                          <SelectItem value="Driving License">Driving License</SelectItem>
-                          <SelectItem value="Passport">Passport</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="memberIdValue">ID Number</Label>
-                      <Input
-                        id="memberIdValue"
-                        value={memberForm.idValue}
-                        onChange={(e) =>
-                          setMemberForm({ ...memberForm, idValue: e.target.value })
-                        }
-                        placeholder="1234 5678 9012"
-                      />
-                    </div>
-
-                    <Button
-                      onClick={handleAddMember}
-                      disabled={addingMember}
-                      className="w-full"
-                    >
-                      {addingMember ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        "Add Member"
-                      )}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <Button onClick={() => openMemberDialog()}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Member
+              </Button>
             </div>
 
             {groupMembers.length === 0 ? (
@@ -1016,33 +1344,50 @@ export default function CustomerDetailPage() {
                 {groupMembers.map((member) => (
                   <Card key={member.uid}>
                     <CardContent className="p-4">
-                      <div className="space-y-2">
+                      <div className="flex items-start justify-between mb-3">
                         <h4 className="font-semibold">{member.name}</h4>
-                        <div className="text-sm space-y-1">
-                          <div>
-                            <span className="text-muted-foreground">Age:</span> {member.age}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">ID Type:</span>{" "}
-                            {member.idType}
-                          </div>
-                          {member.idValue && (
-                            <div>
-                              <span className="text-muted-foreground">ID Number:</span>{" "}
-                              {member.idValue}
-                            </div>
-                          )}
-                          {member.idProofUrl && (
-                            <a
-                              href={member.idProofUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:underline text-xs"
-                            >
-                              View ID Proof
-                            </a>
-                          )}
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openMemberDialog(member)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => confirmDelete("member", member.uid)}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600" />
+                          </Button>
                         </div>
+                      </div>
+                      <div className="text-sm space-y-1">
+                        <div>
+                          <span className="text-muted-foreground">Age:</span> {member.age}
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">ID Type:</span>{" "}
+                          {member.idType}
+                        </div>
+                        {member.idValue && (
+                          <div>
+                            <span className="text-muted-foreground">ID Number:</span>{" "}
+                            {member.idValue}
+                          </div>
+                        )}
+                        {member.idProofUrl && (
+                          <a
+                            href={member.idProofUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline text-xs flex items-center gap-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            View ID Proof
+                          </a>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -1055,70 +1400,10 @@ export default function CustomerDetailPage() {
           <TabsContent value="payments" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Payment History</h3>
-              <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Payment
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Payment</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="amount">Amount (₹)</Label>
-                      <Input
-                        id="amount"
-                        type="number"
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        placeholder="Enter amount"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="mode">Payment Mode</Label>
-                      <Select value={paymentMode} onValueChange={setPaymentMode}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cash">Cash</SelectItem>
-                          <SelectItem value="UPI">UPI</SelectItem>
-                          <SelectItem value="bank">Bank Transfer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Notes (Optional)</Label>
-                      <Input
-                        id="notes"
-                        value={paymentNotes}
-                        onChange={(e) => setPaymentNotes(e.target.value)}
-                        placeholder="Add notes"
-                      />
-                    </div>
-
-                    <Button
-                      onClick={handleAddPayment}
-                      disabled={addingPayment}
-                      className="w-full"
-                    >
-                      {addingPayment ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        "Add Payment"
-                      )}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <Button onClick={() => openPaymentDialog()}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Payment
+              </Button>
             </div>
 
             {payments.length === 0 ? (
@@ -1134,7 +1419,7 @@ export default function CustomerDetailPage() {
                   <Card key={payment.uid}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="space-y-1">
+                        <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-lg">
                               ₹{payment.amount.toLocaleString()}
@@ -1151,12 +1436,36 @@ export default function CustomerDetailPage() {
                             })}
                           </p>
                           {payment.notes && (
-                            <p className="text-sm text-muted-foreground">
-                              {payment.notes}
-                            </p>
+                            <p className="text-sm text-muted-foreground">{payment.notes}</p>
+                          )}
+                          {payment.receiptUrl && (
+                            <a
+                              href={payment.receiptUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              View Receipt
+                            </a>
                           )}
                         </div>
-                        <CreditCard className="w-8 h-8 text-green-600" />
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openPaymentDialog(payment)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => confirmDelete("payment", payment.uid)}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600" />
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -1169,56 +1478,10 @@ export default function CustomerDetailPage() {
           <TabsContent value="charges" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Extra Charges</h3>
-              <Dialog open={chargeDialogOpen} onOpenChange={setChargeDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Charge
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Extra Charge</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Input
-                        id="description"
-                        value={chargeDescription}
-                        onChange={(e) => setChargeDescription(e.target.value)}
-                        placeholder="e.g., Laundry, Extra bed"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="chargeAmount">Amount (₹)</Label>
-                      <Input
-                        id="chargeAmount"
-                        type="number"
-                        value={chargeAmount}
-                        onChange={(e) => setChargeAmount(e.target.value)}
-                        placeholder="Enter amount"
-                      />
-                    </div>
-
-                    <Button
-                      onClick={handleAddCharge}
-                      disabled={addingCharge}
-                      className="w-full"
-                    >
-                      {addingCharge ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        "Add Charge"
-                      )}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <Button onClick={() => openChargeDialog()}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Charge
+              </Button>
             </div>
 
             {extraCharges.length === 0 ? (
@@ -1234,7 +1497,7 @@ export default function CustomerDetailPage() {
                   <Card key={charge.uid}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="space-y-1">
+                        <div className="flex-1 space-y-1">
                           <p className="font-semibold">{charge.description}</p>
                           <p className="text-sm text-muted-foreground">
                             {toDate(charge.date).toLocaleDateString("en-IN", {
@@ -1244,9 +1507,27 @@ export default function CustomerDetailPage() {
                             })}
                           </p>
                         </div>
-                        <span className="font-bold text-lg">
-                          ₹{charge.amount.toLocaleString()}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-lg">
+                            ₹{charge.amount.toLocaleString()}
+                          </span>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openChargeDialog(charge)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => confirmDelete("charge", charge.uid)}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -1255,6 +1536,341 @@ export default function CustomerDetailPage() {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Member Dialog */}
+        <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingMember ? "Edit Member" : "Add Group Member"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Name *</Label>
+                  <Input
+                    value={memberForm.name || ""}
+                    onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Age *</Label>
+                  <Input
+                    type="number"
+                    value={memberForm.age || ""}
+                    onChange={(e) => setMemberForm({ ...memberForm, age: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>ID Type *</Label>
+                <Select
+                  value={memberForm.idType}
+                  onValueChange={(value) => setMemberForm({ ...memberForm, idType: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Aadhar">Aadhar Card</SelectItem>
+                    <SelectItem value="PAN">PAN Card</SelectItem>
+                    <SelectItem value="Driving License">Driving License</SelectItem>
+                    <SelectItem value="Passport">Passport</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>ID Number</Label>
+                <Input
+                  value={memberForm.idValue || ""}
+                  onChange={(e) =>
+                    setMemberForm({ ...memberForm, idValue: e.target.value })
+                  }
+                  placeholder="Optional if uploading ID proof"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>ID Proof</Label>
+                {memberForm.idProofUrl && !memberIdProofFile && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <a
+                      href={memberForm.idProofUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:underline flex items-center gap-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      View Current ID Proof
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setMemberForm({ ...memberForm, idProofUrl: "" });
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </Button>
+                  </div>
+                )}
+                <div className="border-2 border-dashed rounded-lg p-4">
+                  <input
+                    type="file"
+                    id="memberIdProof"
+                    accept="image/*,.pdf"
+                    onChange={(e) =>
+                      handleFileChange(e, setMemberIdProofFile, setMemberIdProofPreview)
+                    }
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="memberIdProof"
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    <Upload className="w-8 h-8 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Upload ID proof</span>
+                  </label>
+                </div>
+                {memberIdProofPreview && (
+                  <img
+                    src={memberIdProofPreview}
+                    alt="ID Preview"
+                    className="mt-2 max-w-full h-32 object-contain rounded border"
+                  />
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setMemberDialogOpen(false)}
+                  disabled={savingMember}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={saveMember} disabled={savingMember}>
+                  {savingMember ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Member"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Payment Dialog */}
+        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingPayment ? "Edit Payment" : "Add Payment"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Amount (₹) *</Label>
+                  <Input
+                    type="number"
+                    value={paymentForm.amount || ""}
+                    onChange={(e) =>
+                      setPaymentForm({ ...paymentForm, amount: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Mode *</Label>
+                  <Select
+                    value={paymentForm.mode}
+                    onValueChange={(value) => setPaymentForm({ ...paymentForm, mode: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="UPI">UPI</SelectItem>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={paymentForm.notes || ""}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                  rows={3}
+                  placeholder="Additional notes..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Receipt</Label>
+                {paymentForm.receiptUrl && !paymentReceiptFile && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <a
+                      href={paymentForm.receiptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:underline flex items-center gap-1"
+                    >
+                      <Eye className="w-4 h-4" />
+                      View Current Receipt
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPaymentForm({ ...paymentForm, receiptUrl: "" });
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </Button>
+                  </div>
+                )}
+                <div className="border-2 border-dashed rounded-lg p-4">
+                  <input
+                    type="file"
+                    id="paymentReceipt"
+                    accept="image/*,.pdf"
+                    onChange={(e) =>
+                      handleFileChange(e, setPaymentReceiptFile, setPaymentReceiptPreview)
+                    }
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="paymentReceipt"
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    <Upload className="w-8 h-8 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Upload receipt</span>
+                  </label>
+                </div>
+                {paymentReceiptPreview && (
+                  <img
+                    src={paymentReceiptPreview}
+                    alt="Receipt Preview"
+                    className="mt-2 max-w-full h-32 object-contain rounded border"
+                  />
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setPaymentDialogOpen(false)}
+                  disabled={savingPayment}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={savePayment} disabled={savingPayment}>
+                  {savingPayment ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Payment"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Charge Dialog */}
+        <Dialog open={chargeDialogOpen} onOpenChange={setChargeDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editingCharge ? "Edit Extra Charge" : "Add Extra Charge"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Description *</Label>
+                <Input
+                  value={chargeForm.description || ""}
+                  onChange={(e) =>
+                    setChargeForm({ ...chargeForm, description: e.target.value })
+                  }
+                  placeholder="e.g., Laundry, Extra bed"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Amount (₹) *</Label>
+                <Input
+                  type="number"
+                  value={chargeForm.amount || ""}
+                  onChange={(e) => setChargeForm({ ...chargeForm, amount: e.target.value })}
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setChargeDialogOpen(false)}
+                  disabled={savingCharge}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={saveCharge} disabled={savingCharge}>
+                  {savingCharge ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Charge"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete this {itemToDelete?.type}. This action cannot be
+                undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                disabled={deleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppShell>
   );
