@@ -64,30 +64,8 @@ function toDate(value: any): Date {
   return new Date();
 }
 
-interface GroupMember {
-  uid: string;
-  name: string;
-  age: number;
-  idType: string;
-  idValue?: string;
-  idProofUrl?: string;
-}
-
-interface Payment {
-  uid: string;
-  amount: number;
-  mode: string;
-  date: any;
-  notes?: string;
-  receiptUrl?: string;
-}
-
-interface ExtraCharge {
-  uid: string;
-  description: string;
-  amount: number;
-  date: any;
-}
+import type { GroupMember, ExtraCharge } from "@/models/customer.model";
+import { PaymentMode, PaymentType, Payment } from "@/models/customer.model";
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -427,6 +405,7 @@ export default function CustomerDetailPage() {
       const memberData = {
         name: memberForm.name,
         age: parseInt(memberForm.age),
+        gender: memberForm.gender || "male",
         idType: memberForm.idType,
         idValue: memberForm.idValue || "",
         idProofUrl: idProofUrl || "",
@@ -1427,12 +1406,13 @@ export default function CustomerDetailPage() {
                             ₹{customer.cuisineCharges.toLocaleString()}
                           </span>
                         </div>
-                        {customer.advancePaymentMode && (
+                        {/* {customer.advancePaymentMode && (
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Payment Mode:</span>
                             <span className="font-medium">{customer.advancePaymentMode}</span>
                           </div>
-                        )}
+                        )} 
+                         */}
                       </div>
                     </>
                   )}

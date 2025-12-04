@@ -1,34 +1,25 @@
 import { z } from "zod";
 
 export const customerFormSchema = z.object({
-  // Personal Details
   name: z.string().min(2, "Name must be at least 2 characters"),
-  age: z.number().min(1, "Age is required").max(120, "Invalid age"),
-  phone: z.string().regex(/^\+?[0-9]{10,15}$/, "Invalid phone number"),
-  email: z.string().email("Invalid email address"),
-  address: z.string().min(5, "Address must be at least 5 characters"),
-
-  // ID Proof (flexible - either idValue OR idProofUrl required)
+  age: z.number().min(1, "Age is required").max(150),
+  gender: z.enum(["male", "female", "other"]),
+  phone: z.string().min(10, "Valid phone number required"),
+  email: z.string().email("Valid email required"),
+  address: z.string().min(5, "Address is required"),
   idType: z.enum(["Aadhar", "PAN", "Driving License", "Passport", "Other"]),
   idValue: z.string().optional(),
   idProofUrl: z.string().optional(),
-
-  // Vehicle
-  vehicleNumber: z.string().min(1, "Vehicle number is required"),
-
-  // Booking Details
+  vehicleNumber: z.string().min(1, "Vehicle number required"),
   checkIn: z.date(),
   checkOut: z.date(),
   checkInTime: z.string().default("12:00"),
   checkOutTime: z.string().default("10:00"),
   instructions: z.string().optional(),
-
-  // Financial
-  stayCharges: z.number().min(0, "Stay charges must be positive"),
-  cuisineCharges: z.number().min(0, "Cuisine charges must be positive").default(0),
-  receivedAmount: z.number().min(0, "Received amount must be positive").default(0),
-  advancePaymentMode: z.enum(["cash", "UPI", "bank"]).optional(),
-  advanceReceiptUrl: z.string().optional(),
+  stayCharges: z.number().min(0),
+  cuisineCharges: z.number().min(0).default(0),
+  receivedAmount: z.number().min(0).default(0),
+  advancePaymentMode: z.enum(["cash", "UPI", "bank"]).default("cash"),
 })
   .refine(
     (data) => data.checkOut > data.checkIn,

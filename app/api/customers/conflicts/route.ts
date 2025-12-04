@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
-import { checkBookingConflict } from "@/lib/firebase/customers";
+import { checkBookingAvailability } from "@/lib/firebase/bookings";
 
-// Helper to convert ISO string to Date
 function parseDate(value: any): Date {
   if (value instanceof Date) return value;
   if (typeof value === "string") return new Date(value);
@@ -27,19 +26,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Convert ISO strings to Date objects
     const checkInDate = parseDate(checkIn);
     const checkOutDate = parseDate(checkOut);
 
-    const result = await checkBookingConflict(
+    const result = await checkBookingAvailability(
       checkInDate,
       checkOutDate,
       excludeCustomerId
     );
 
     return NextResponse.json({
-      hasConflict: result.hasConflict,
-      conflictingBookings: result.conflictingBookings,
+      hasConflict: !result.available,
+      conflictingBookings: result.conflicts,
     });
   } catch (error: any) {
     console.error("Error checking booking conflicts:", error);

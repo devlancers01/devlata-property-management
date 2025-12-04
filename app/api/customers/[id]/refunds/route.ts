@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-config";
 import { getRefunds, addRefund } from "@/lib/firebase/customers";
 import { sendCancellationEmail } from "@/lib/email/user-emails";
 import { getCustomerById } from "@/lib/firebase/customers";
+import { deleteBookings } from "@/lib/firebase/bookings";
 
 export async function GET(
   req: NextRequest,
@@ -84,6 +85,7 @@ export async function POST(
     };
 
     const refundUid = await addRefund(id, refundData);
+    await deleteBookings(customer.checkIn, customer.checkOut);
 
     // Send cancellation email
     try {
