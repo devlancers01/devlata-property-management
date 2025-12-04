@@ -10,6 +10,7 @@ export interface CustomerModel {
   uid: string;
   name: string;
   age: number;
+  gender: "male" | "female" | "other";
   phone: string;
   email: string;
   address: string;
@@ -17,8 +18,8 @@ export interface CustomerModel {
   idValue?: string;
   idProofUrl?: string;
   vehicleNumber: string;
-  checkIn: Date | Timestamp;
-  checkOut: Date | Timestamp;
+  checkIn: Date;
+  checkOut: Date;
   checkInTime: string;
   checkOutTime: string;
   instructions?: string;
@@ -28,19 +29,18 @@ export interface CustomerModel {
   totalAmount: number;
   receivedAmount: number;
   balanceAmount: number;
-  advancePaymentMode?: string; // Added
-  advanceReceiptUrl?: string; // Added
   status: "active" | "completed" | "cancelled";
   createdAt: Date | Timestamp;
   updatedAt: Date | Timestamp;
-  refundAmount?: number; // Add this field
-  cancelledAt?: Date | Timestamp; // Add this field
+  refundAmount?: number;
+  cancelledAt?: Date | Timestamp;
 }
 
 export interface GroupMember {
   uid: string;
   name: string;
   age: number;
+  gender: "male" | "female" | "other";
   idType: "Aadhar" | "PAN" | "Driving License" | "Passport" | "Other";
   idValue?: string;
   idProofUrl?: string;
@@ -51,6 +51,7 @@ export interface Payment {
   uid: string;
   amount: number;
   mode: string;
+  type: PaymentType;
   date: Date | Timestamp;
   notes?: string;
   receiptUrl?: string;
@@ -90,4 +91,9 @@ export interface Refund {
   date: Date | Timestamp;
   receiptUrl?: string;
   processedBy?: string; // User who processed the refund
+}
+
+export interface GroupMemberForm extends GroupMember {
+  idProofFile?: File;
+  idProofPreview?: string;
 }

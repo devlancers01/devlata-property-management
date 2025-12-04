@@ -17,7 +17,6 @@ export async function createCustomer(data: Partial<CustomerModel>): Promise<stri
   try {
     const customerRef = adminDb.collection("customers").doc();
 
-    // Helper to ensure Date object
     const ensureDate = (value: any): Date => {
       if (value instanceof Date) return value;
       if (typeof value === "string") return new Date(value);
@@ -27,11 +26,11 @@ export async function createCustomer(data: Partial<CustomerModel>): Promise<stri
       return new Date();
     };
 
-    // Convert dates to Firestore Timestamps
     const customerData = {
       uid: customerRef.id,
       name: data.name!,
       age: data.age!,
+      gender: data.gender!,
       phone: data.phone!,
       email: data.email!,
       address: data.address!,
@@ -50,8 +49,6 @@ export async function createCustomer(data: Partial<CustomerModel>): Promise<stri
       totalAmount: data.totalAmount!,
       receivedAmount: data.receivedAmount || 0,
       balanceAmount: data.balanceAmount!,
-      advancePaymentMode: (data as any).advancePaymentMode || "",
-      advanceReceiptUrl: (data as any).advanceReceiptUrl || "",
       status: data.status || "active",
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),

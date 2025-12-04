@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
-import { createCustomer, getAllCustomers } from "@/lib/firebase/customers";
+import { addPayment, createCustomer, getAllCustomers } from "@/lib/firebase/customers";
+import { checkBookingAvailability, createBookings } from "@/lib/firebase/bookings";
 // import { checkPermission } from "@/lib/firebase/permissions";
 
 // Helper to convert ISO string to Date
@@ -61,15 +62,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check permission
-    // const hasPermission = await checkPermission(
-    //   session.user.email,
-    //   "customers.create"
-    // );
-    // if (!hasPermission) {
-    //   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    // }
-
     const body = await req.json();
 
     // Validate required fields
@@ -78,6 +70,7 @@ export async function POST(req: NextRequest) {
       "phone",
       "email",
       "age",
+      "gender",
       "idType",
       "address",
       "vehicleNumber",
@@ -95,11 +88,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Validate ID proof (either idValue OR idProofUrl required)
+    // Validate ID proof
     if (!body.idValue && !body.idProofUrl) {
       return NextResponse.json(
         { error: "Either ID number or ID proof image is required" },
         { status: 400 }
+      );
+    }
+
+    // Check booking availability
+    const checkInDate = parseDate(body.checkIn);
+    const checkOutDate = parseDate(body.checkOut);
+
+    const { available } = await checkBookingAvailability(checkInDate, checkOutDate);
+
+    if (!available) {
+      return NextResponse.json(
+        { error: "Selected dates are not available. Please choose different dates." },
+        { status: 409 }
       );
     }
 
@@ -109,22 +115,21 @@ export async function POST(req: NextRequest) {
       phone: body.phone,
       email: body.email,
       age: body.age,
+      gender: body.gender,
       idType: body.idType,
       idValue: body.idValue || "",
       idProofUrl: body.idProofUrl || "",
       address: body.address,
       vehicleNumber: body.vehicleNumber,
-      checkIn: parseDate(body.checkIn),
-      checkOut: parseDate(body.checkOut),
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
       checkInTime: body.checkInTime || "12:00",
       checkOutTime: body.checkOutTime || "10:00",
       instructions: body.instructions || "",
       stayCharges: body.stayCharges,
       cuisineCharges: body.cuisineCharges || 0,
-      receivedAmount: body.receivedAmount || 0,
+      receivedAmount: 0,
       extraChargesTotal: 0,
-      advancePaymentMode: body.advancePaymentMode || "",
-      advanceReceiptUrl: body.advanceReceiptUrl || "",
       status: "active",
     });
 
@@ -133,14 +138,28 @@ export async function POST(req: NextRequest) {
       customerData.stayCharges +
       customerData.cuisineCharges +
       customerData.extraChargesTotal;
-    customerData.balanceAmount =
-      customerData.totalAmount - customerData.receivedAmount;
+    customerData.balanceAmount = customerData.totalAmount;
 
     const customerUid = await createCustomer(customerData);
 
+    // Create bookings
+    const membersCount = (body.members?.length || 0) + 1;
+    await createBookings(customerUid, checkInDate, checkOutDate, membersCount);
+
+    // Add advance payment if present
+    if (body.receivedAmount && body.receivedAmount > 0) {
+      await addPayment(customerUid, {
+        amount: body.receivedAmount,
+        mode: body.advancePaymentMode || "cash",
+        type: "advance",
+        notes: "Advance payment",
+        receiptUrl: body.advanceReceiptUrl || "",
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      customer: { uid: customerUid }, // ✅ Return customer ID properly
+      customer: { uid: customerUid },
     });
   } catch (error: any) {
     console.error("Create customer error:", error);

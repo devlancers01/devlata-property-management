@@ -19,15 +19,8 @@ import { toast } from "sonner";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
-interface GroupMember {
-    id: string;
-    name: string;
-    age: number;
-    idType: string;
-    idValue?: string;
-    idProofFile?: File;
-    idProofPreview?: string;
-}
+import type { GroupMember, GroupMemberForm } from "@/models/customer.model";
+import { PaymentMode, PaymentType, Payment } from "@/models/customer.model";
 
 export default function NewCustomerPage() {
     const router = useRouter();
@@ -39,7 +32,7 @@ export default function NewCustomerPage() {
     const [advanceReceiptFile, setAdvanceReceiptFile] = useState<File | null>(null);
     const [advanceReceiptPreview, setAdvanceReceiptPreview] = useState<string>("");
     const [conflictWarning, setConflictWarning] = useState<string>("");
-    const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+    const [groupMembers, setGroupMembers] = useState<GroupMemberForm[]>([]);
 
     const {
         register,
@@ -55,6 +48,9 @@ export default function NewCustomerPage() {
             checkOutTime: "10:00",
             cuisineCharges: 0,
             receivedAmount: 0,
+            idType: "Aadhar",
+            gender: "male",
+            advancePaymentMode: "cash",
         },
     });
 
@@ -161,19 +157,20 @@ export default function NewCustomerPage() {
         setGroupMembers([
             ...groupMembers,
             {
-                id: Date.now().toString(),
+                uid: Date.now().toString(),
                 name: "",
                 age: 0,
+                gender: "male",
                 idType: "Aadhar",
                 idValue: "",
-            },
+            } as GroupMemberForm,
         ]);
     };
 
-    const updateGroupMember = (id: string, field: keyof GroupMember, value: any) => {
+    const updateGroupMember = (id: string, field: keyof GroupMemberForm, value: any) => {
         setGroupMembers(
             groupMembers.map((member) =>
-                member.id === id ? { ...member, [field]: value } : member
+                member.uid === id ? { ...member, [field]: value } : member
             )
         );
     };
@@ -193,7 +190,7 @@ export default function NewCustomerPage() {
             return;
         }
 
-        const member = groupMembers.find((m) => m.id === id);
+        const member = groupMembers.find((m) => m.uid === id);
         if (!member) return;
 
         if (file.type.startsWith("image/")) {
@@ -210,7 +207,7 @@ export default function NewCustomerPage() {
     };
 
     const removeGroupMember = (id: string) => {
-        setGroupMembers(groupMembers.filter((member) => member.id !== id));
+        setGroupMembers(groupMembers.filter((member) => member.uid !== id));
     };
 
     const onSubmit = async (data: CustomerFormData) => {
@@ -233,10 +230,11 @@ export default function NewCustomerPage() {
                 setUploadingFile(false);
             }
 
-            // ✅ Build clean customer payload (remove undefined)
+            // ✅ Build clean customer payload (remove advancePaymentMode and advanceReceiptUrl)
             const customerPayload: any = {
                 name: data.name,
                 age: data.age,
+                gender: data.gender,
                 phone: data.phone,
                 email: data.email,
                 address: data.address,
@@ -249,14 +247,15 @@ export default function NewCustomerPage() {
                 stayCharges: data.stayCharges,
                 cuisineCharges: data.cuisineCharges || 0,
                 receivedAmount: data.receivedAmount || 0,
+                advancePaymentMode: data.advancePaymentMode || "cash",
+                advanceReceiptUrl: advanceReceiptUrl || "",
+                members: groupMembers,
             };
 
             // Add optional fields only if they exist
             if (data.idValue) customerPayload.idValue = data.idValue;
             if (idProofUrl) customerPayload.idProofUrl = idProofUrl;
             if (data.instructions) customerPayload.instructions = data.instructions;
-            if (data.advancePaymentMode) customerPayload.advancePaymentMode = data.advancePaymentMode;
-            if (advanceReceiptUrl) customerPayload.advanceReceiptUrl = advanceReceiptUrl;
 
             // Submit customer data
             const res = await fetch("/api/customers", {
@@ -279,6 +278,7 @@ export default function NewCustomerPage() {
                     const cleanMember: any = {
                         name: member.name,
                         age: member.age,
+                        gender: member.gender,
                         idType: member.idType,
                     };
 
@@ -458,6 +458,26 @@ export default function NewCustomerPage() {
                                                 />
                                                 {errors.age && (
                                                     <p className="text-xs text-red-600">{errors.age.message}</p>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="gender">Gender *</Label>
+                                                <Select
+                                                    value={watch("gender")}
+                                                    onValueChange={(value) => setValue("gender", value as any)}
+                                                >
+                                                    <SelectTrigger className={errors.gender ? "border-red-500" : ""}>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="male">Male</SelectItem>
+                                                        <SelectItem value="female">Female</SelectItem>
+                                                        <SelectItem value="other">Other</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                {errors.gender && (
+                                                    <p className="text-xs text-red-600">{errors.gender.message}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -716,7 +736,7 @@ export default function NewCustomerPage() {
                                         ) : (
                                             <div className="space-y-4">
                                                 {groupMembers.map((member, index) => (
-                                                    <Card key={member.id} className="border-2">
+                                                    <Card key={member.uid} className="border-2">
                                                         <CardContent className="p-4 space-y-4">
                                                             <div className="flex items-center justify-between">
                                                                 <h4 className="font-semibold">Member {index + 1}</h4>
@@ -724,7 +744,7 @@ export default function NewCustomerPage() {
                                                                     type="button"
                                                                     variant="ghost"
                                                                     size="sm"
-                                                                    onClick={() => removeGroupMember(member.id)}
+                                                                    onClick={() => removeGroupMember(member.uid)}
                                                                 >
                                                                     <Trash2 className="w-4 h-4 text-red-600" />
                                                                 </Button>
@@ -736,7 +756,7 @@ export default function NewCustomerPage() {
                                                                     <Input
                                                                         value={member.name}
                                                                         onChange={(e) =>
-                                                                            updateGroupMember(member.id, "name", e.target.value)
+                                                                            updateGroupMember(member.uid, "name", e.target.value)
                                                                         }
                                                                         placeholder="Member name"
                                                                         required
@@ -749,11 +769,31 @@ export default function NewCustomerPage() {
                                                                         type="number"
                                                                         value={member.age || ""}
                                                                         onChange={(e) =>
-                                                                            updateGroupMember(member.id, "age", parseInt(e.target.value) || 0)
+                                                                            updateGroupMember(member.uid, "age", parseInt(e.target.value) || 0)
                                                                         }
                                                                         placeholder="Age"
                                                                         required
                                                                     />
+                                                                </div>
+
+                                                                {/* Gender  */}
+                                                                <div className="space-y-2">
+                                                                    <Label>Gender *</Label>
+                                                                    <Select
+                                                                        value={member.gender}
+                                                                        onValueChange={(value) =>
+                                                                            updateGroupMember(member.uid, "gender", value)
+                                                                        }
+                                                                    >
+                                                                        <SelectTrigger>
+                                                                            <SelectValue />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="male">Male</SelectItem>
+                                                                            <SelectItem value="female">Female</SelectItem>
+                                                                            <SelectItem value="other">Other</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
                                                                 </div>
                                                             </div>
 
@@ -762,7 +802,7 @@ export default function NewCustomerPage() {
                                                                 <Select
                                                                     value={member.idType}
                                                                     onValueChange={(value) =>
-                                                                        updateGroupMember(member.id, "idType", value)
+                                                                        updateGroupMember(member.uid, "idType", value)
                                                                     }
                                                                 >
                                                                     <SelectTrigger>
@@ -783,7 +823,7 @@ export default function NewCustomerPage() {
                                                                 <Input
                                                                     value={member.idValue || ""}
                                                                     onChange={(e) =>
-                                                                        updateGroupMember(member.id, "idValue", e.target.value)
+                                                                        updateGroupMember(member.uid, "idValue", e.target.value)
                                                                     }
                                                                     placeholder="1234 5678 9012"
                                                                 />
@@ -794,13 +834,13 @@ export default function NewCustomerPage() {
                                                                 <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-primary transition-colors">
                                                                     <input
                                                                         type="file"
-                                                                        id={`member-id-${member.id}`}
+                                                                        id={`member-id-${member.uid}`}
                                                                         accept="image/*,.pdf"
-                                                                        onChange={(e) => handleMemberFileChange(member.id, e)}
+                                                                        onChange={(e) => handleMemberFileChange(member.uid, e)}
                                                                         className="hidden"
                                                                     />
                                                                     <label
-                                                                        htmlFor={`member-id-${member.id}`}
+                                                                        htmlFor={`member-id-${member.uid}`}
                                                                         className="cursor-pointer flex flex-col items-center gap-2"
                                                                     >
                                                                         <Upload className="w-6 h-6 text-slate-400" />
@@ -1044,7 +1084,7 @@ export default function NewCustomerPage() {
                                                     </h3>
                                                     <div className="space-y-2 text-sm">
                                                         {groupMembers.map((member, index) => (
-                                                            <div key={member.id} className="p-2 bg-slate-50 rounded">
+                                                            <div key={member.uid} className="p-2 bg-slate-50 rounded">
                                                                 {index + 1}. {member.name}, Age {member.age}
                                                             </div>
                                                         ))}

@@ -42,7 +42,7 @@ export async function POST(
     const { id } = await params; // ✅ Await params
 
     const body = await req.json();
-    const { amount, mode, notes, receiptUrl } = body;
+    const { amount, mode, type, notes, receiptUrl } = body;
 
     if (!amount || amount <= 0) {
       return NextResponse.json(
@@ -54,6 +54,7 @@ export async function POST(
     const paymentUid = await addPayment(id, {
       amount,
       mode: mode || "cash",
+      type: type || "advance",
       notes,
       receiptUrl,
     });
