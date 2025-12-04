@@ -59,13 +59,18 @@ export async function POST(
       );
     }
 
-    const memberUid = await addGroupMember(id, {
+    // ✅ Build clean member object (remove undefined)
+    const memberData: any = {
       name,
       age,
       idType,
-      idValue,
-      idProofUrl,
-    });
+    };
+
+    // Only add optional fields if they exist
+    if (idValue) memberData.idValue = idValue;
+    if (idProofUrl) memberData.idProofUrl = idProofUrl;
+
+    const memberUid = await addGroupMember(id, memberData);
 
     return NextResponse.json({
       success: true,
