@@ -359,3 +359,134 @@ export async function sendPasswordResetEmail(email: string, resetUrl: string) {
     `,
   });
 }
+
+export async function sendCancellationEmail(
+  email: string,
+  name: string,
+  bookingId: string,
+  checkIn: any,
+  checkOut: any,
+  originalAmount: number,
+  refundAmount: number,
+  remainingBalance: number
+) {
+  const formatDate = (date: any) => {
+    const d = date instanceof Date ? date : date.toDate ? date.toDate() : new Date(date);
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: "Booking Cancellation Confirmation - Devlata Villa",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #dc2626; color: white; padding: 20px; text-align: center; }
+            .content { background: #f9f9f9; padding: 30px; }
+            .info-box {
+              background: white;
+              border: 2px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 20px;
+              margin: 20px 0;
+            }
+            .info-row {
+              padding: 10px 0;
+              border-bottom: 1px solid #eee;
+              display: flex;
+              justify-content: space-between;
+            }
+            .info-row:last-child {
+              border-bottom: none;
+            }
+            .info-label {
+              font-weight: bold;
+              color: #666;
+            }
+            .info-value {
+              color: #171717;
+            }
+            .refund-amount {
+              font-size: 24px;
+              font-weight: bold;
+              color: #dc2626;
+              text-align: center;
+              padding: 20px;
+              background: #fee2e2;
+              border-radius: 8px;
+              margin: 20px 0;
+            }
+            .support-box {
+              background: #dbeafe;
+              border: 1px solid #3b82f6;
+              padding: 15px;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+            .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Booking Cancellation</h1>
+            </div>
+            <div class="content">
+              <h2>Dear ${name},</h2>
+              <p>Your booking has been successfully cancelled. Below are the details of your cancellation:</p>
+              
+              <div class="info-box">
+                <div class="info-row">
+                  <div class="info-label">Booking ID:</div>
+                  <div class="info-value">${bookingId.slice(0, 8)}</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-label">Check-In Date:</div>
+                  <div class="info-value">${formatDate(checkIn)}</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-label">Check-Out Date:</div>
+                  <div class="info-value">${formatDate(checkOut)}</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-label">Total Paid:</div>
+                  <div class="info-value">₹${originalAmount.toLocaleString()}</div>
+                </div>
+              </div>
+
+              <div class="refund-amount">
+                Refund Amount: ₹${refundAmount.toLocaleString()}
+              </div>
+
+              
+
+              <p>The refund will be processed within 5-7 business days to your original payment method.</p>
+
+              <div class="support-box">
+                <strong>Need Help?</strong><br>
+                If you have any questions about your cancellation or refund, please contact us at:<br>
+                <strong>Email:</strong> support@devlatavilla.com<br>
+                <strong>Phone:</strong> +91 98765 43210
+              </div>
+
+              <p>We're sorry to see you cancel and hope to serve you again in the future.</p>
+            </div>
+            <div class="footer">
+              <p>&copy; ${new Date().getFullYear()} Devlata Villa. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  });
+}

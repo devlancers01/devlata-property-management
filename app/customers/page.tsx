@@ -7,16 +7,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Eye, Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Plus, Search, Eye, Loader2, Calendar, X } from "lucide-react";
 import type { CustomerModel } from "@/models/customer.model";
 
 // Helper to safely convert to Date
 function toDate(value: any): Date {
   if (value instanceof Date) return value;
-  if (value && typeof value === 'object' && 'toDate' in value) {
+  if (value && typeof value === "object" && "toDate" in value) {
     return value.toDate();
   }
-  if (typeof value === 'string') return new Date(value);
+  if (typeof value === "string") return new Date(value);
   return new Date();
 }
 
@@ -26,17 +27,28 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     fetchCustomers();
-  }, [statusFilter]);
+  }, [statusFilter, startDate, endDate]);
 
   const fetchCustomers = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
+      
       if (statusFilter !== "all") {
         params.set("status", statusFilter);
+      }
+      
+      if (startDate) {
+        params.set("startDate", startDate);
+      }
+      
+      if (endDate) {
+        params.set("endDate", endDate);
       }
 
       const res = await fetch(`/api/customers?${params}`);
@@ -58,6 +70,11 @@ export default function CustomersPage() {
       customer.phone.toLowerCase().includes(query)
     );
   });
+
+  const clearDateFilters = () => {
+    setStartDate("");
+    setEndDate("");
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -90,7 +107,8 @@ export default function CustomersPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="space-y-4">
+          {/* Search */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
@@ -100,6 +118,8 @@ export default function CustomersPage() {
               className="pl-10"
             />
           </div>
+
+          {/* Status Filters */}
           <div className="flex gap-2 flex-wrap">
             <Button
               variant={statusFilter === "all" ? "default" : "outline"}
@@ -130,6 +150,49 @@ export default function CustomersPage() {
               Cancelled
             </Button>
           </div>
+
+          {/* Date Range Filters */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-row gap-4 items-end">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="startDate" className="text-sm flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Check-In From
+                  </Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="endDate" className="text-sm flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Check-In To
+                  </Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+                {(startDate || endDate) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearDateFilters}
+                    className="whitespace-nowrap"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Clear Dates
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Customer List */}

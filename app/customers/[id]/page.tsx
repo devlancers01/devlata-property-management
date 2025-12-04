@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -44,6 +47,7 @@ import {
   Upload,
   Eye,
   AlertCircle,
+  Ban,
 } from "lucide-react";
 import type { CustomerModel } from "@/models/customer.model";
 import { toast } from "sonner";
@@ -88,12 +92,14 @@ interface ExtraCharge {
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const customerId = params.id as string;
 
   const [customer, setCustomer] = useState<CustomerModel | null>(null);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>([]);
+  const [refunds, setRefunds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Edit states
@@ -138,6 +144,13 @@ export default function CustomerDetailPage() {
   const [itemToDelete, setItemToDelete] = useState<{ type: string; id: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Cancellation dialog states
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [refundForm, setRefundForm] = useState<any>({});
+  const [refundReceiptFile, setRefundReceiptFile] = useState<File | null>(null);
+  const [refundReceiptPreview, setRefundReceiptPreview] = useState<string>("");
+  const [processingCancellation, setProcessingCancellation] = useState(false);
+
   // Conflict warning
   const [conflictWarning, setConflictWarning] = useState<string>("");
 
@@ -170,6 +183,11 @@ export default function CustomerDetailPage() {
       const chargesRes = await fetch(`/api/customers/${customerId}/charges`);
       const chargesData = await chargesRes.json();
       setExtraCharges(chargesData.charges || []);
+
+      // Fetch refunds
+      const refundsRes = await fetch(`/api/customers/${customerId}/refunds`);
+      const refundsData = await refundsRes.json();
+      setRefunds(refundsData.refunds || []);
     } catch (error) {
       console.error("Error fetching customer details:", error);
       toast.error("Failed to load customer details");
@@ -616,6 +634,59 @@ export default function CustomerDetailPage() {
     }
   };
 
+  // Handle cancellation
+  const handleCancellation = async () => {
+    if (!refundForm.amount || parseFloat(refundForm.amount) < 0) {
+      toast.error("Please enter a valid refund amount");
+      return;
+    }
+
+    if (parseFloat(refundForm.amount) > (customer?.receivedAmount || 0)) {
+      toast.error("Refund amount cannot exceed received amount");
+      return;
+    }
+
+    setProcessingCancellation(true);
+    try {
+      let receiptUrl = refundForm.receiptUrl;
+
+      // Upload refund receipt if selected
+      if (refundReceiptFile) {
+        receiptUrl = await uploadFile(refundReceiptFile, "receipts");
+      }
+
+      const refundData = {
+        amount: parseFloat(refundForm.amount),
+        method: refundForm.method || "cash",
+        reason: refundForm.reason || "",
+        receiptUrl: receiptUrl || "",
+      };
+
+      const res = await fetch(`/api/customers/${customerId}/refunds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(refundData),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to process cancellation");
+      }
+
+      toast.success("Booking cancelled successfully!");
+      setCancelDialogOpen(false);
+      setRefundForm({});
+      setRefundReceiptFile(null);
+      setRefundReceiptPreview("");
+      fetchCustomerDetails();
+    } catch (error: any) {
+      console.error("Error processing cancellation:", error);
+      toast.error(error.message || "Failed to cancel booking");
+    } finally {
+      setProcessingCancellation(false);
+    }
+  };
+
   const handleWhatsApp = () => {
     if (!customer) return;
     const message = encodeURIComponent(
@@ -680,12 +751,59 @@ export default function CustomerDetailPage() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <Badge className={getStatusColor(customer.status)}>{customer.status}</Badge>
+            {customer.status === "active" && 
+             session?.user?.permissions?.some((p: string) => ["bookings.delete", "bookings.edit"].includes(p)) && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  setRefundForm({
+                    amount: customer.receivedAmount.toString(),
+                    method: "cash",
+                    reason: "",
+                  });
+                  setCancelDialogOpen(true);
+                }}
+              >
+                <Ban className="w-4 h-4 mr-2" />
+                Cancel Booking
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={handleWhatsApp}>
               <MessageCircle className="w-4 h-4 mr-2" />
               WhatsApp
             </Button>
           </div>
         </div>
+
+        {customer.status === "cancelled" && customer.cancelledAt && (
+          <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-2">
+                <Ban className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-red-900 dark:text-red-100 font-semibold">
+                    Booking Cancelled
+                  </p>
+                  <p className="text-xs text-red-800 dark:text-red-200 mt-1">
+                    Cancelled on {toDate(customer.cancelledAt).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  {customer.refundAmount && customer.refundAmount > 0 && (
+                    <p className="text-xs text-red-800 dark:text-red-200 mt-1">
+                      Refund Amount: ₹{customer.refundAmount.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -776,6 +894,7 @@ export default function CustomerDetailPage() {
             <TabsTrigger value="members">Members ({groupMembers.length})</TabsTrigger>
             <TabsTrigger value="payments">Payments ({payments.length})</TabsTrigger>
             <TabsTrigger value="charges">Charges ({extraCharges.length})</TabsTrigger>
+            {refunds.length>0 && <TabsTrigger value="refunds">Refunds ({refunds.length})</TabsTrigger>}
           </TabsList>
 
           {/* Details Tab */}
@@ -1535,6 +1654,71 @@ export default function CustomerDetailPage() {
               </div>
             )}
           </TabsContent>
+
+          {/* Refunds Tab */}
+          <TabsContent value="refunds" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Refund History</h3>
+            </div>
+
+            {refunds.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Receipt className="w-12 h-12 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">No refunds processed</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {refunds.map((refund: any) => (
+                  <Card key={refund.uid} className="border-red-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-lg text-red-600">
+                              -₹{refund.amount.toLocaleString()}
+                            </span>
+                            <Badge variant="outline">{refund.method}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {toDate(refund.date).toLocaleDateString("en-IN", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          {refund.reason && (
+                            <p className="text-sm text-muted-foreground">
+                              Reason: {refund.reason}
+                            </p>
+                          )}
+                          {refund.processedBy && (
+                            <p className="text-xs text-muted-foreground">
+                              Processed by: {refund.processedBy}
+                            </p>
+                          )}
+                          {refund.receiptUrl && (
+                            <a
+                              href={refund.receiptUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              View Receipt
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
 
         {/* Member Dialog */}
@@ -1835,6 +2019,139 @@ export default function CustomerDetailPage() {
                     </>
                   ) : (
                     "Save Charge"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Cancellation Dialog */}
+        <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <Ban className="w-5 h-5" />
+                Cancel Booking
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-900">
+                  <strong>Warning:</strong> This action will permanently cancel the booking.
+                  The customer will receive an email notification with refund details.
+                </p>
+              </div>
+
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <h4 className="font-semibold">Booking Summary</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Total Amount:</span>{" "}
+                    ₹{customer?.totalAmount.toLocaleString()}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Received Amount:</span>{" "}
+                    <span className="font-semibold">₹{customer?.receivedAmount.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Refund Amount (₹) *</Label>
+                  <Input
+                    type="number"
+                    value={refundForm.amount || ""}
+                    onChange={(e) => setRefundForm({ ...refundForm, amount: e.target.value })}
+                    placeholder="0"
+                    max={customer?.receivedAmount}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Maximum: ₹{customer?.receivedAmount.toLocaleString()}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Refund Method *</Label>
+                  <Select
+                    value={refundForm.method}
+                    onValueChange={(value) => setRefundForm({ ...refundForm, method: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="UPI">UPI</SelectItem>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Cancellation Reason (Optional)</Label>
+                <Textarea
+                  value={refundForm.reason || ""}
+                  onChange={(e) => setRefundForm({ ...refundForm, reason: e.target.value })}
+                  rows={3}
+                  placeholder="Reason for cancellation..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Refund Receipt (Optional)</Label>
+                <div className="border-2 border-dashed rounded-lg p-4">
+                  <input
+                    type="file"
+                    id="refundReceipt"
+                    accept="image/*,.pdf"
+                    onChange={(e) =>
+                      handleFileChange(e, setRefundReceiptFile, setRefundReceiptPreview)
+                    }
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="refundReceipt"
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    <Upload className="w-8 h-8 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Upload refund receipt</span>
+                  </label>
+                </div>
+                {refundReceiptPreview && (
+                  <img
+                    src={refundReceiptPreview}
+                    alt="Receipt Preview"
+                    className="mt-2 max-w-full h-32 object-contain rounded border"
+                  />
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setCancelDialogOpen(false)}
+                  disabled={processingCancellation}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleCancellation}
+                  disabled={processingCancellation}
+                >
+                  {processingCancellation ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="w-4 h-4 mr-2" />
+                      Confirm Cancellation
+                    </>
                   )}
                 </Button>
               </div>
