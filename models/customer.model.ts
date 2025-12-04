@@ -33,6 +33,8 @@ export interface CustomerModel {
   status: "active" | "completed" | "cancelled";
   createdAt: Date | Timestamp;
   updatedAt: Date | Timestamp;
+  refundAmount?: number; // Add this field
+  cancelledAt?: Date | Timestamp; // Add this field
 }
 
 export interface GroupMember {
@@ -78,4 +80,14 @@ export interface CustomerCreateInput {
   stayCharges: number;
   cuisineCharges?: number;
   members?: GroupMember[];
+}
+
+export interface Refund {
+  uid: string;
+  amount: number;
+  method: "cash" | "UPI" | "bank";
+  reason?: string;
+  date: Date | Timestamp;
+  receiptUrl?: string;
+  processedBy?: string; // User who processed the refund
 }

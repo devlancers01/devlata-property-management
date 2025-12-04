@@ -1,5 +1,5 @@
 import { adminDb } from "./admin";
-import { CustomerModel, GroupMember, Payment, ExtraCharge } from "@/models/customer.model";
+import { CustomerModel, GroupMember, Payment, ExtraCharge, Refund } from "@/models/customer.model";
 import { Timestamp } from "firebase-admin/firestore";
 
 // Helper function to safely convert Timestamp to Date
@@ -131,17 +131,30 @@ export async function getAllCustomers(filters?: {
 }
 
 export async function updateCustomer(uid: string, data: Partial<CustomerModel>): Promise<void> {
+  // Helper to ensure Date object
+  const ensureDate = (value: any): Date => {
+    if (value instanceof Date) return value;
+    if (typeof value === "string") return new Date(value);
+    if (value && typeof value === "object" && "toDate" in value) {
+      return value.toDate();
+    }
+    return new Date();
+  };
+
   const updateData: any = {
-    ...data,
     updatedAt: Timestamp.fromDate(new Date()),
   };
 
-  if (data.checkIn) {
-    updateData.checkIn = Timestamp.fromDate(toDate(data.checkIn));
-  }
-  if (data.checkOut) {
-    updateData.checkOut = Timestamp.fromDate(toDate(data.checkOut));
-  }
+  // Copy over fields, converting dates appropriately
+  Object.keys(data).forEach(key => {
+    if (key === 'checkIn' || key === 'checkOut') {
+      if (data[key as keyof CustomerModel]) {
+        updateData[key] = Timestamp.fromDate(ensureDate(data[key as keyof CustomerModel]));
+      }
+    } else if (key !== 'updatedAt') {
+      updateData[key] = data[key as keyof CustomerModel];
+    }
+  });
 
   await adminDb.collection("customers").doc(uid).update(updateData);
 }
@@ -355,5 +368,57 @@ export async function getExtraCharges(customerId: string): Promise<ExtraCharge[]
       ...data,
       date: data.date ? toDate(data.date) : new Date(),
     } as ExtraCharge;
+  });
+}
+
+// ==================== REFUNDS ====================
+
+export async function addRefund(
+  customerId: string,
+  refund: Omit<Refund, "uid" | "date">
+): Promise<string> {
+  const refundRef = await adminDb
+    .collection("customers")
+    .doc(customerId)
+    .collection("refunds")
+    .add({
+      ...refund,
+      date: Timestamp.now(),
+    });
+
+  // Update customer's receivedAmount and refundAmount
+  const customer = await getCustomerById(customerId);
+  if (customer) {
+    const newReceivedAmount = customer.receivedAmount - refund.amount;
+    const newRefundAmount = (customer.refundAmount || 0) + refund.amount;
+    const newBalanceAmount = customer.totalAmount - newReceivedAmount;
+
+    await updateCustomer(customerId, {
+      receivedAmount: newReceivedAmount,
+      refundAmount: newRefundAmount,
+      balanceAmount: newBalanceAmount,
+      status: "cancelled",
+      cancelledAt: new Date(),
+    });
+  }
+
+  return refundRef.id;
+}
+
+export async function getRefunds(customerId: string): Promise<Refund[]> {
+  const snapshot = await adminDb
+    .collection("customers")
+    .doc(customerId)
+    .collection("refunds")
+    .orderBy("date", "desc")
+    .get();
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      uid: doc.id,
+      ...data,
+      date: data.date ? toDate(data.date) : new Date(),
+    } as Refund;
   });
 }
