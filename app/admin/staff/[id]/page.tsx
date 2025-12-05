@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,8 +25,10 @@ function toDate(value: any): Date {
   return new Date();
 }
 
-export default function StaffDetailPage({ params }: { params: { id: string } }) {
+export default function StaffDetailPage() {
   const router = useRouter();
+  const params = useParams();
+  const staffId = params?.id as string;
   const { data: session } = useSession();
   const [staff, setStaff] = useState<StaffModel | null>(null);
   const [payments, setPayments] = useState<StaffPayment[]>([]);
@@ -42,15 +44,18 @@ export default function StaffDetailPage({ params }: { params: { id: string } }) 
   const [editingExpense, setEditingExpense] = useState<StaffExpense | null>(null);
 
   useEffect(() => {
-    fetchStaff();
-    fetchPayments();
-    fetchExpenses();
-    fetchDocuments();
-  }, [params.id]);
+    if (staffId) {
+      fetchStaff();
+      fetchPayments();
+      fetchExpenses();
+      fetchDocuments();
+    }
+  }, [staffId]);
 
   const fetchStaff = async () => {
+    if (!staffId) return;
     try {
-      const res = await fetch(`/api/staff/${params.id}`);
+      const res = await fetch(`/api/staff/${staffId}`);
       const data = await res.json();
       setStaff(data.staff);
     } catch (error) {
@@ -62,8 +67,9 @@ export default function StaffDetailPage({ params }: { params: { id: string } }) 
   };
 
   const fetchPayments = async () => {
+    if (!staffId) return;
     try {
-      const res = await fetch(`/api/staff/${params.id}/payments`);
+      const res = await fetch(`/api/staff/${staffId}/payments`);
       const data = await res.json();
       setPayments(data.payments || []);
     } catch (error) {
@@ -72,8 +78,9 @@ export default function StaffDetailPage({ params }: { params: { id: string } }) 
   };
 
   const fetchExpenses = async () => {
+    if (!staffId) return;
     try {
-      const res = await fetch(`/api/staff/${params.id}/expenses`);
+      const res = await fetch(`/api/staff/${staffId}/expenses`);
       const data = await res.json();
       setExpenses(data.expenses || []);
     } catch (error) {
@@ -82,8 +89,9 @@ export default function StaffDetailPage({ params }: { params: { id: string } }) 
   };
 
   const fetchDocuments = async () => {
+    if (!staffId) return;
     try {
-      const res = await fetch(`/api/staff/${params.id}/documents`);
+      const res = await fetch(`/api/staff/${staffId}/documents`);
       const data = await res.json();
       setDocuments(data.documents || []);
     } catch (error) {
@@ -92,8 +100,9 @@ export default function StaffDetailPage({ params }: { params: { id: string } }) 
   };
 
   const handleDelete = async () => {
+    if (!staffId) return;
     try {
-      const res = await fetch(`/api/staff/${params.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/staff/${staffId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete");
       toast.success("Staff member deleted");
       router.push("/admin/staff");
@@ -367,7 +376,7 @@ export default function StaffDetailPage({ params }: { params: { id: string } }) 
                             {session?.user?.permissions?.includes("staff.payments.delete") && (
                               <Button variant="destructive" size="sm" onClick={async () => {
                                 if (confirm("Delete this payment?")) {
-                                  await fetch(`/api/staff/${params.id}/payments/${payment.uid}`, { method: "DELETE" });
+                                  await fetch(`/api/staff/${staffId}/payments/${payment.uid}`, { method: "DELETE" });
                                   fetchPayments();
                                   fetchStaff();
                                   toast.success("Payment deleted");
@@ -427,7 +436,7 @@ export default function StaffDetailPage({ params }: { params: { id: string } }) 
                             {session?.user?.permissions?.includes("staff.expenses.delete") && (
                               <Button variant="destructive" size="sm" onClick={async () => {
                                 if (confirm("Delete this expense?")) {
-                                  await fetch(`/api/staff/${params.id}/expenses/${expense.uid}`, { method: "DELETE" });
+                                  await fetch(`/api/staff/${staffId}/expenses/${expense.uid}`, { method: "DELETE" });
                                   fetchExpenses();
                                   fetchStaff();
                                   toast.success("Expense deleted");
@@ -485,7 +494,7 @@ export default function StaffDetailPage({ params }: { params: { id: string } }) 
                         {session?.user?.permissions?.includes("staff.documents.delete") && (
                           <Button variant="destructive" size="sm" onClick={async () => {
                             if (confirm("Delete this document?")) {
-                              await fetch(`/api/staff/${params.id}/documents/${doc.uid}`, { method: "DELETE" });
+                              await fetch(`/api/staff/${staffId}/documents/${doc.uid}`, { method: "DELETE" });
                               fetchDocuments();
                               toast.success("Document deleted");
                             }

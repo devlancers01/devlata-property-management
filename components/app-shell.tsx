@@ -124,12 +124,26 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <span className="font-bold">Property Manager</span>
           </div>
+          <div className="p-4 border-t mt-auto">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  signOut({ callbackUrl: "/login" });
+                }}
+              >
+                <LogOut className="w-5 h-5 mr-3" />
+                Logout
+              </Button>
+            </div>
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
+            
             <SheetContent side="left" className="w-64 p-0">
               <div className="p-6 border-b">
                 <div className="flex items-center gap-3">
@@ -164,19 +178,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 })}
               </nav>
             </SheetContent>
-            <div className="p-4 border-t mt-auto">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  signOut({ callbackUrl: "/login" });
-                }}
-              >
-                <LogOut className="w-5 h-5 mr-3" />
-                Logout
-              </Button>
-            </div>
+            
           </Sheet>
         </header>
 

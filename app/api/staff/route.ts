@@ -88,23 +88,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const staffData = {
+    // Build staff data object, only including defined values
+    const staffData: any = {
       name,
       age: parseInt(age),
       gender,
       phone,
-      alternatePhone: alternatePhone || undefined,
-      idProofType: idProofType || undefined,
-      idProofValue: idProofValue || undefined,
-      idProofUrl: idProofUrl || undefined,
       designation,
-      customDesignation: designation === "Other" ? customDesignation : undefined,
-      monthlySalary: monthlySalary ? parseFloat(monthlySalary) : undefined,
       joiningDate: new Date(joiningDate),
-      leavingDate: leavingDate ? new Date(leavingDate) : undefined,
       status: status || "active",
-      notes: notes || undefined,
     };
+
+    // Add optional fields only if they have values
+    if (alternatePhone) staffData.alternatePhone = alternatePhone;
+    if (idProofType) staffData.idProofType = idProofType;
+    if (idProofValue) staffData.idProofValue = idProofValue;
+    if (idProofUrl) staffData.idProofUrl = idProofUrl;
+    if (designation === "Other" && customDesignation) {
+      staffData.customDesignation = customDesignation;
+    }
+    if (monthlySalary) staffData.monthlySalary = parseFloat(monthlySalary);
+    if (leavingDate) staffData.leavingDate = new Date(leavingDate);
+    if (notes) staffData.notes = notes;
 
     const staffId = await createStaff(staffData);
 
