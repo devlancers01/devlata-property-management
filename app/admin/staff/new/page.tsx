@@ -12,27 +12,45 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
-import type { StaffFormData } from "@/models/staff.model";
+import type { StaffDesignation, StaffStatus, IDProofType } from "@/models/staff.model";
+
+interface StaffFormState {
+  name: string;
+  age: number | undefined;
+  gender: "male" | "female" | "other";
+  phone: string;
+  alternatePhone: string;
+  idProofType: IDProofType | "";
+  idProofValue: string;
+  idProofDocument: string;
+  designation: StaffDesignation | "";
+  customDesignation: string;
+  monthlySalary: number | undefined;
+  joiningDate: string;
+  leavingDate: string;
+  status: StaffStatus;
+  notes: string;
+}
 
 export default function NewStaffPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [formData, setFormData] = useState<Partial<StaffFormData>>({
+  const [formData, setFormData] = useState<StaffFormState>({
     name: "",
     age: undefined,
     gender: "male",
     phone: "",
     alternatePhone: "",
-    idProofType: undefined,
+    idProofType: "",
     idProofValue: "",
-    idProofDocument: undefined,
-    designation: "Cook",
+    idProofDocument: "",
+    designation: "",
     customDesignation: "",
     monthlySalary: undefined,
     joiningDate: new Date().toISOString().split("T")[0],
-    leavingDate: undefined,
+    leavingDate: "",
     status: "active",
     notes: "",
   });
@@ -81,7 +99,7 @@ export default function NewStaffPage() {
       if (formData.idProofType) {
         payload.idProofType = formData.idProofType;
         if (formData.idProofDocument) {
-          payload.idProofDocument = formData.idProofDocument;
+          payload.idProofUrl = formData.idProofDocument;
         } else if (formData.idProofValue) {
           payload.idProofValue = formData.idProofValue;
         }
@@ -193,14 +211,14 @@ export default function NewStaffPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
-                  <Select value={formData.gender} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
+                  <Select value={formData.gender} onValueChange={(value: "male" | "female" | "other") => setFormData({ ...formData, gender: value })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -232,7 +250,7 @@ export default function NewStaffPage() {
                   <Label htmlFor="designation">
                     Designation <span className="text-red-500">*</span>
                   </Label>
-                  <Select value={formData.designation} onValueChange={(value) => setFormData({ ...formData, designation: value })}>
+                  <Select value={formData.designation} onValueChange={(value: StaffDesignation) => setFormData({ ...formData, designation: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select designation" />
                     </SelectTrigger>
@@ -293,7 +311,7 @@ export default function NewStaffPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+                  <Select value={formData.status} onValueChange={(value: StaffStatus) => setFormData({ ...formData, status: value })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -312,7 +330,7 @@ export default function NewStaffPage() {
                     <Input
                       id="leavingDate"
                       type="date"
-                      value={formData.leavingDate || ""}
+                      value={formData.leavingDate}
                       onChange={(e) => setFormData({ ...formData, leavingDate: e.target.value })}
                     />
                   </div>
@@ -324,7 +342,7 @@ export default function NewStaffPage() {
                 
                 <div className="space-y-2">
                   <Label htmlFor="idProofType">ID Proof Type</Label>
-                  <Select value={formData.idProofType} onValueChange={(value) => setFormData({ ...formData, idProofType: value })}>
+                  <Select value={formData.idProofType} onValueChange={(value: IDProofType) => setFormData({ ...formData, idProofType: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select ID proof type" />
                     </SelectTrigger>
@@ -365,7 +383,7 @@ export default function NewStaffPage() {
                             type="button"
                             variant="outline"
                             size="icon"
-                            onClick={() => setFormData({ ...formData, idProofDocument: undefined })}
+                            onClick={() => setFormData({ ...formData, idProofDocument: "" })}
                           >
                             <X className="w-4 h-4" />
                           </Button>

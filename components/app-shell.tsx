@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { LayoutDashboard, Users, Wallet, Calendar, Settings, Menu, Building2, TrendingUp, Shield, UserCog } from "lucide-react"
+import { signOut } from "next-auth/react";
+import { LogOut } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -30,7 +32,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: session } = useSession()
 
   // Filter admin navigation based on permissions
-  const visibleAdminNav = adminNavigation.filter(item => 
+  const visibleAdminNav = adminNavigation.filter(item =>
     session?.user?.permissions?.includes(item.permission)
   )
 
@@ -100,6 +102,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </nav>
+        <div className="p-4 border-t mt-auto">
+          <Button
+            variant="destructive"
+            className="w-full justify-start"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+          >
+            <LogOut className="w-5 h-5 mr-3" />
+            Logout
+          </Button>
+        </div>
       </aside>
 
       {/* Mobile Header & Content */}
@@ -152,6 +164,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                 })}
               </nav>
             </SheetContent>
+            <div className="p-4 border-t mt-auto">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  signOut({ callbackUrl: "/login" });
+                }}
+              >
+                <LogOut className="w-5 h-5 mr-3" />
+                Logout
+              </Button>
+            </div>
           </Sheet>
         </header>
 

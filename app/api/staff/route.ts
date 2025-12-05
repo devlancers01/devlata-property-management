@@ -66,7 +66,9 @@ export async function POST(req: NextRequest) {
       customDesignation,
       monthlySalary,
       joiningDate,
+      leavingDate,
       status,
+      notes,
     } = body;
 
     // Validate required fields
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate email format for phone
+    // Validate phone format
     const phoneRegex = /^[0-9+\-\s()]+$/;
     if (!phoneRegex.test(phone)) {
       return NextResponse.json(
@@ -99,7 +101,9 @@ export async function POST(req: NextRequest) {
       customDesignation: designation === "Other" ? customDesignation : undefined,
       monthlySalary: monthlySalary ? parseFloat(monthlySalary) : undefined,
       joiningDate: new Date(joiningDate),
+      leavingDate: leavingDate ? new Date(leavingDate) : undefined,
       status: status || "active",
+      notes: notes || undefined,
     };
 
     const staffId = await createStaff(staffData);
