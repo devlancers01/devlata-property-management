@@ -59,15 +59,23 @@ export async function POST(
       );
     }
 
-    const expenseData = {
+    const expenseData: any = {
       amount: parseFloat(amount),
       mode,
       category,
-      customCategory: category === "other" ? customCategory : undefined,
-      receiptUrl: receiptUrl || undefined,
-      notes: notes || undefined,
       date: new Date(date),
     };
+
+    // Only add optional fields if they have values
+    if (category === "other" && customCategory) {
+      expenseData.customCategory = customCategory;
+    }
+    if (receiptUrl) {
+      expenseData.receiptUrl = receiptUrl;
+    }
+    if (notes) {
+      expenseData.notes = notes;
+    }
 
     const expenseId = await addStaffExpense(id, expenseData);
 

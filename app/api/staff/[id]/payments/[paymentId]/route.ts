@@ -26,9 +26,12 @@ export async function PATCH(
     if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
     if (body.mode) updateData.mode = body.mode;
     if (body.type) updateData.type = body.type;
-    if (body.month !== undefined) updateData.month = body.month;
-    if (body.receiptUrl !== undefined) updateData.receiptUrl = body.receiptUrl;
-    if (body.notes !== undefined) updateData.notes = body.notes;
+    // Only add month if it has a value
+    if (body.month) updateData.month = body.month;
+    // Only add receiptUrl if it has a value
+    if (body.receiptUrl) updateData.receiptUrl = body.receiptUrl;
+    // Only add notes if it has a value
+    if (body.notes) updateData.notes = body.notes;
     if (body.date) updateData.date = new Date(body.date);
 
     await updateStaffPayment(id, paymentId, updateData);
