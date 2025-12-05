@@ -272,7 +272,7 @@ export default function CustomersPage() {
                       </div>
                     </div>
 
-                    <Button
+                    <Button className="cursor-pointer"
                       size="sm"
                       variant="outline"
                       onClick={(e) => {
@@ -280,7 +280,7 @@ export default function CustomersPage() {
                         router.push(`/customers/${customer.uid}`);
                       }}
                     >
-                      <Eye className="w-4 h-4 mr-2" />
+                      <Eye className="w-4 h-4 mr-2 " />
                       View Details
                     </Button>
                   </div>

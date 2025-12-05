@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { LayoutDashboard, Users, Wallet, Calendar, Settings, Menu, Building2, TrendingUp, Shield, UserCog } from "lucide-react"
+import { signOut } from "next-auth/react";
+import { LogOut } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -21,6 +23,7 @@ const navigation = [
 const adminNavigation = [
   { name: "User Management", href: "/admin/users", icon: UserCog, permission: "users.view" },
   { name: "Roles & Permissions", href: "/admin/roles", icon: Shield, permission: "roles.view" },
+  { name: "Staff Management", href: "/admin/staff", icon: Users, permission: "staff.view" },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -29,7 +32,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { data: session } = useSession()
 
   // Filter admin navigation based on permissions
-  const visibleAdminNav = adminNavigation.filter(item => 
+  const visibleAdminNav = adminNavigation.filter(item =>
     session?.user?.permissions?.includes(item.permission)
   )
 
@@ -99,6 +102,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </nav>
+        <div className="p-4 border-t mt-auto">
+          <Button
+            variant="destructive"
+            className="w-full justify-start"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+          >
+            <LogOut className="w-5 h-5 mr-3" />
+            Logout
+          </Button>
+        </div>
       </aside>
 
       {/* Mobile Header & Content */}
@@ -111,12 +124,26 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <span className="font-bold">Property Manager</span>
           </div>
+          <div className="p-4 border-t mt-auto">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  signOut({ callbackUrl: "/login" });
+                }}
+              >
+                <LogOut className="w-5 h-5 mr-3" />
+                Logout
+              </Button>
+            </div>
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
+            
             <SheetContent side="left" className="w-64 p-0">
               <div className="p-6 border-b">
                 <div className="flex items-center gap-3">
@@ -151,6 +178,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 })}
               </nav>
             </SheetContent>
+            
           </Sheet>
         </header>
 

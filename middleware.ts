@@ -24,6 +24,12 @@ export default withAuth(
       }
     }
 
+    if (path.startsWith("/admin/staff")) {
+      if (!token.permissions?.includes("staff.view")) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    }
+
     return NextResponse.next();
   },
   {
