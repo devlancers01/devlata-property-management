@@ -25,62 +25,224 @@ export type Permission =
   | "roles.view"
   | "roles.create"
   | "roles.edit"
-  | "roles.delete";
+  | "roles.delete"
+  | "staff.create"
+  | "staff.edit"
+  | "staff.delete"
+  | "staff.view"
+  | "staff.payments.view"
+  | "staff.expenses.view"
+  | "staff.documents.view"
+  | "staff.documents.create"
+  | "staff.documents.edit"
+  | "staff.documents.delete"
+  | "staff.payments.create"
+  | "staff.payments.edit"
+  | "staff.payments.delete"
+  | "staff.expenses.create"
+  | "staff.expenses.edit"
+  | "staff.expenses.delete"
+  | "staff.documents.create"
+  | "staff.documents.edit"
+  | "staff.documents.delete";
 
-// Permission metadata for UI
-export interface PermissionMeta {
+    
+  export interface PermissionMeta {
   key: Permission;
   displayName: string;
   category: "customers" | "bookings" | "payments" | "sales" | "expenses" | "staff" | "settings" | "users" | "roles";
   description: string;
 }
 
-// All available permissions with metadata
 export const ALL_PERMISSIONS: PermissionMeta[] = [
   // Customers
   { key: "customers.view", displayName: "View Customers", category: "customers", description: "View customer list and details" },
   { key: "customers.create", displayName: "Create Customers", category: "customers", description: "Create new customer bookings" },
   { key: "customers.edit", displayName: "Edit Customers", category: "customers", description: "Edit customer information" },
   { key: "customers.delete", displayName: "Delete Customers", category: "customers", description: "Delete customer records" },
+
+  // Users Management
+  {
+    key: "users.view",
+    displayName: "View Users",
+    category: "users",
+    description: "View user list and details",
+  },
+  {
+    key: "users.create",
+    displayName: "Create Users",
+    category: "users",
+    description: "Add new users to the system",
+  },
+  {
+    key: "users.edit",
+    displayName: "Edit Users",
+    category: "users",
+    description: "Modify user information",
+  },
+  {
+    key: "users.delete",
+    displayName: "Delete Users",
+    category: "users",
+    description: "Remove users from the system",
+  },
+
+  // Roles Management
+  {
+    key: "roles.view",
+    displayName: "View Roles",
+    category: "roles",
+    description: "View roles and permissions",
+  },
+  {
+    key: "roles.create",
+    displayName: "Create Roles",
+    category: "roles",
+    description: "Create new roles",
+  },
+  {
+    key: "roles.edit",
+    displayName: "Edit Roles",
+    category: "roles",
+    description: "Modify role permissions",
+  },
+  {
+    key: "roles.delete",
+    displayName: "Delete Roles",
+    category: "roles",
+    description: "Remove custom roles",
+  },
+
+  // Bookings Management
+  {
+    key: "bookings.view",
+    displayName: "View Bookings",
+    category: "bookings",
+    description: "View customer bookings",
+  },
+  {
+    key: "bookings.create",
+    displayName: "Create Bookings",
+    category: "bookings",
+    description: "Create new bookings",
+  },
+  {
+    key: "bookings.edit",
+    displayName: "Edit Bookings",
+    category: "bookings",
+    description: "Modify booking details",
+  },
+  {
+    key: "bookings.delete",
+    displayName: "Delete Bookings",
+    category: "bookings",
+    description: "Cancel and delete bookings",
+  },
+
+  // Staff Management
+  {
+    key: "staff.view",
+    displayName: "View Staff",
+    category: "staff",
+    description: "View staff list and details",
+  },
+  {
+    key: "staff.create",
+    displayName: "Add Staff",
+    category: "staff",
+    description: "Add new staff members",
+  },
+  {
+    key: "staff.edit",
+    displayName: "Edit Staff",
+    category: "staff",
+    description: "Modify staff information",
+  },
+  {
+    key: "staff.delete",
+    displayName: "Remove Staff",
+    category: "staff",
+    description: "Remove staff members",
+  },
+  {
+    key: "staff.payments.view",
+    displayName: "View Staff Payments",
+    category: "staff",
+    description: "View staff payment history",
+  },
+  {
+    key: "staff.payments.create",
+    displayName: "Add Staff Payments",
+    category: "staff",
+    description: "Record staff payments and salaries",
+  },
+  {
+    key: "staff.payments.edit",
+    displayName: "Edit Staff Payments",
+    category: "staff",
+    description: "Modify payment records",
+  },
+  {
+    key: "staff.payments.delete",
+    displayName: "Delete Staff Payments",
+    category: "staff",
+    description: "Remove payment records",
+  },
+  {
+    key: "staff.expenses.view",
+    displayName: "View Staff Expenses",
+    category: "staff",
+    description: "View staff expense records",
+  },
+  {
+    key: "staff.expenses.create",
+    displayName: "Add Staff Expenses",
+    category: "staff",
+    description: "Record staff expenses",
+  },
+  {
+    key: "staff.expenses.edit",
+    displayName: "Edit Staff Expenses",
+    category: "staff",
+    description: "Modify expense records",
+  },
+  {
+    key: "staff.expenses.delete",
+    displayName: "Delete Staff Expenses",
+    category: "staff",
+    description: "Remove expense records",
+  },
+  {
+    key: "staff.documents.view",
+    displayName: "View Staff Documents",
+    category: "staff",
+    description: "View uploaded staff documents",
+  },
+  {
+    key: "staff.documents.create",
+    displayName: "Upload Staff Documents",
+    category: "staff",
+    description: "Upload staff documents",
+  },
+  {
+    key: "staff.documents.delete",
+    displayName: "Delete Staff Documents",
+    category: "staff",
+    description: "Remove uploaded documents",
+  },
+
   
-  // Bookings
-  { key: "bookings.view", displayName: "View Bookings", category: "bookings", description: "View booking calendar and reservations" },
-  { key: "bookings.create", displayName: "Create Bookings", category: "bookings", description: "Create new bookings" },
-  { key: "bookings.edit", displayName: "Edit Bookings", category: "bookings", description: "Edit existing bookings" },
-  { key: "bookings.delete", displayName: "Delete Bookings", category: "bookings", description: "Delete bookings" },
-  
-  // Payments
-  { key: "payments.view", displayName: "View Payments", category: "payments", description: "View payment records" },
-  { key: "payments.create", displayName: "Create Payments", category: "payments", description: "Record new payments" },
-  
-  // Sales
-  { key: "sales.view", displayName: "View Sales", category: "sales", description: "View sales reports and analytics" },
-  
-  // Expenses
-  { key: "expenses.view", displayName: "View Expenses", category: "expenses", description: "View expense records" },
-  { key: "expenses.create", displayName: "Create Expenses", category: "expenses", description: "Add new expenses" },
-  
-  // Staff
-  { key: "staff.view", displayName: "View Staff", category: "staff", description: "View staff information" },
-  
-  // Settings
-  { key: "settings.view", displayName: "View Settings", category: "settings", description: "View system settings" },
-  { key: "settings.edit", displayName: "Edit Settings", category: "settings", description: "Modify system settings" },
-  
-  // Users
-  { key: "users.view", displayName: "View Users", category: "users", description: "View user list" },
-  { key: "users.create", displayName: "Create Users", category: "users", description: "Create new users" },
-  { key: "users.edit", displayName: "Edit Users", category: "users", description: "Edit user information" },
-  { key: "users.delete", displayName: "Delete Users", category: "users", description: "Delete user accounts" },
-  
-  // Roles
-  { key: "roles.view", displayName: "View Roles", category: "roles", description: "View roles and permissions" },
-  { key: "roles.create", displayName: "Create Roles", category: "roles", description: "Create new roles" },
-  { key: "roles.edit", displayName: "Edit Roles", category: "roles", description: "Edit role permissions" },
-  { key: "roles.delete", displayName: "Delete Roles", category: "roles", description: "Delete custom roles" },
 ];
 
-// Role model for Firestore
+export interface Role {
+  uid: string;
+  name: string;
+  displayName: string;
+  permissions: string[];
+  isSystemRole: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 export interface RoleModel {
   uid: string;
   name: string; // "admin", "staff", "manager", etc.

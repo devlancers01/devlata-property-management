@@ -21,6 +21,7 @@ const navigation = [
 const adminNavigation = [
   { name: "User Management", href: "/admin/users", icon: UserCog, permission: "users.view" },
   { name: "Roles & Permissions", href: "/admin/roles", icon: Shield, permission: "roles.view" },
+  { name: "Staff Management", href: "/admin/staff", icon: Users, permission: "staff.view" },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {

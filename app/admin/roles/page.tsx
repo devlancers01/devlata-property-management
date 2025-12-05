@@ -236,7 +236,7 @@ export default function RolesPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full mt-2"
+                    className="w-full mt-2 "
                     onClick={() => router.push(`/admin/roles/${role.uid}`)}
                   >
                     View Details

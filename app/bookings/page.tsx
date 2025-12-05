@@ -457,12 +457,12 @@ export default function BookingsPage() {
                               </h4>
                               <Badge className="mt-1">Customer Booking</Badge>
                             </div>
-                            <Button
+                            <Button className="cursor-pointer"
                               variant="outline"
                               size="sm"
                               onClick={() => router.push(`/customers/${booking.customerId}`)}
                             >
-                              <Eye className="w-4 h-4 mr-2" />
+                              <Eye className="w-4 h-4 mr-2 " />
                               View Details
                             </Button>
                           </div>
