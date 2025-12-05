@@ -12,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Edit, Trash2, Loader2, Plus, Download, Upload, X, DollarSign, Receipt, FileText, User } from "lucide-react";
+import { ArrowLeft, Edit, Trash2, Loader2, Plus, Download, Upload, X, DollarSign, Receipt, FileText, User, Save } from "lucide-react";
 import { toast } from "sonner";
 import type { StaffModel, StaffPayment, StaffExpense, StaffDocument } from "@/models/staff.model";
 
@@ -30,11 +30,16 @@ export default function StaffDetailPage() {
   const params = useParams();
   const staffId = params?.id as string;
   const { data: session } = useSession();
+  
+  // State management
   const [staff, setStaff] = useState<StaffModel | null>(null);
   const [payments, setPayments] = useState<StaffPayment[]>([]);
   const [expenses, setExpenses] = useState<StaffExpense[]>([]);
   const [documents, setDocuments] = useState<StaffDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
+  // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -42,6 +47,112 @@ export default function StaffDetailPage() {
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<StaffPayment | null>(null);
   const [editingExpense, setEditingExpense] = useState<StaffExpense | null>(null);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+
+  // Form data states
+  const [editFormData, setEditFormData] = useState<Partial<StaffModel>>({});
+  const [paymentFormData, setPaymentFormData] = useState<{
+    amount: number;
+    mode: "cash" | "UPI" | "bank";
+    type: "salary" | "advance" | "bonus" | "overtime" | "other";
+    month: string;
+    notes: string;
+    date: string;
+  }>({
+    amount: 0,
+    mode: "cash",
+    type: "salary",
+    month: "",
+    notes: "",
+    date: new Date().toISOString().split("T")[0],
+  });
+  const [expenseFormData, setExpenseFormData] = useState<{
+    amount: number;
+    mode: "cash" | "UPI" | "bank";
+    category: "fuel" | "travel" | "food" | "uniform" | "training" | "medical" | "other";
+    customCategory: string;
+    notes: string;
+    date: string;
+  }>({
+    amount: 0,
+    mode: "cash",
+    category: "fuel",
+    customCategory: "",
+    notes: "",
+    date: new Date().toISOString().split("T")[0],
+  });
+  const [documentFormData, setDocumentFormData] = useState({
+    description: "",
+    documentUrl: "",
+  });
+
+  // Load staff data when form opens
+  useEffect(() => {
+    if (staff && editDialogOpen) {
+      setEditFormData({
+        name: staff.name,
+        age: staff.age,
+        gender: staff.gender,
+        phone: staff.phone,
+        alternatePhone: staff.alternatePhone || "",
+        designation: staff.designation,
+        customDesignation: staff.customDesignation || "",
+        monthlySalary: staff.monthlySalary,
+        joiningDate: toDate(staff.joiningDate),
+        leavingDate: staff.leavingDate ? toDate(staff.leavingDate) : undefined,
+        status: staff.status,
+        idProofType: staff.idProofType,
+        idProofValue: staff.idProofValue || "",
+        notes: staff.notes || "",
+      });
+    }
+  }, [staff, editDialogOpen]);
+
+  // Load payment data when editing
+  useEffect(() => {
+    if (editingPayment && paymentDialogOpen) {
+      setPaymentFormData({
+        amount: editingPayment.amount,
+        mode: editingPayment.mode,
+        type: editingPayment.type,
+        month: editingPayment.month || "",
+        notes: editingPayment.notes || "",
+        date: toDate(editingPayment.date).toISOString().split("T")[0],
+      });
+    } else if (!editingPayment && paymentDialogOpen) {
+      setPaymentFormData({
+        amount: 0,
+        mode: "cash",
+        type: "salary",
+        month: "",
+        notes: "",
+        date: new Date().toISOString().split("T")[0],
+      });
+    }
+  }, [editingPayment, paymentDialogOpen]);
+
+  // Load expense data when editing
+  useEffect(() => {
+    if (editingExpense && expenseDialogOpen) {
+      setExpenseFormData({
+        amount: editingExpense.amount,
+        mode: editingExpense.mode,
+        category: editingExpense.category,
+        customCategory: editingExpense.customCategory || "",
+        notes: editingExpense.notes || "",
+        date: toDate(editingExpense.date).toISOString().split("T")[0],
+      });
+    } else if (!editingExpense && expenseDialogOpen) {
+      setExpenseFormData({
+        amount: 0,
+        mode: "cash",
+        category: "fuel",
+        customCategory: "",
+        notes: "",
+        date: new Date().toISOString().split("T")[0],
+      });
+    }
+  }, [editingExpense, expenseDialogOpen]);
 
   useEffect(() => {
     if (staffId) {
@@ -99,6 +210,46 @@ export default function StaffDetailPage() {
     }
   };
 
+  const handleUpdateStaff = async () => {
+    if (!staffId) return;
+    setSaving(true);
+    try {
+      // Filter out undefined values and prepare clean data
+      const cleanedData: any = {};
+      
+      if (editFormData.name) cleanedData.name = editFormData.name;
+      if (editFormData.age) cleanedData.age = editFormData.age;
+      if (editFormData.gender) cleanedData.gender = editFormData.gender;
+      if (editFormData.phone) cleanedData.phone = editFormData.phone;
+      if (editFormData.alternatePhone !== undefined) cleanedData.alternatePhone = editFormData.alternatePhone;
+      if (editFormData.designation) cleanedData.designation = editFormData.designation;
+      if (editFormData.customDesignation !== undefined) cleanedData.customDesignation = editFormData.customDesignation;
+      if (editFormData.monthlySalary !== undefined) cleanedData.monthlySalary = editFormData.monthlySalary;
+      if (editFormData.joiningDate) cleanedData.joiningDate = editFormData.joiningDate;
+      if (editFormData.leavingDate !== undefined) cleanedData.leavingDate = editFormData.leavingDate;
+      if (editFormData.status) cleanedData.status = editFormData.status;
+      if (editFormData.idProofType !== undefined) cleanedData.idProofType = editFormData.idProofType;
+      if (editFormData.idProofValue !== undefined) cleanedData.idProofValue = editFormData.idProofValue;
+      if (editFormData.notes !== undefined) cleanedData.notes = editFormData.notes;
+
+      const res = await fetch(`/api/staff/${staffId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cleanedData),
+      });
+
+      if (!res.ok) throw new Error("Failed to update");
+      
+      toast.success("Staff updated successfully");
+      setEditDialogOpen(false);
+      fetchStaff();
+    } catch (error) {
+      toast.error("Failed to update staff");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!staffId) return;
     try {
@@ -108,6 +259,162 @@ export default function StaffDetailPage() {
       router.push("/admin/staff");
     } catch (error) {
       toast.error("Failed to delete staff");
+    }
+  };
+
+  const handleSavePayment = async () => {
+    if (!staffId) return;
+    setSaving(true);
+    try {
+      const url = editingPayment
+        ? `/api/staff/${staffId}/payments/${editingPayment.uid}`
+        : `/api/staff/${staffId}/payments`;
+      
+      const method = editingPayment ? "PATCH" : "POST";
+
+      // Filter out empty/undefined values
+      const cleanedData: any = {
+        amount: paymentFormData.amount,
+        mode: paymentFormData.mode,
+        type: paymentFormData.type,
+        date: paymentFormData.date,
+      };
+
+      // Only add month if it's a salary payment and month is provided
+      if (paymentFormData.type === "salary" && paymentFormData.month) {
+        cleanedData.month = paymentFormData.month;
+      }
+
+      // Only add notes if not empty
+      if (paymentFormData.notes && paymentFormData.notes.trim()) {
+        cleanedData.notes = paymentFormData.notes;
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cleanedData),
+      });
+
+      if (!res.ok) throw new Error("Failed to save payment");
+
+      toast.success(editingPayment ? "Payment updated" : "Payment added");
+      setPaymentDialogOpen(false);
+      setEditingPayment(null);
+      fetchPayments();
+      fetchStaff();
+    } catch (error) {
+      toast.error("Failed to save payment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveExpense = async () => {
+    if (!staffId) return;
+    setSaving(true);
+    try {
+      const url = editingExpense
+        ? `/api/staff/${staffId}/expenses/${editingExpense.uid}`
+        : `/api/staff/${staffId}/expenses`;
+      
+      const method = editingExpense ? "PATCH" : "POST";
+
+      // Filter out empty/undefined values
+      const cleanedData: any = {
+        amount: expenseFormData.amount,
+        mode: expenseFormData.mode,
+        category: expenseFormData.category,
+        date: expenseFormData.date,
+      };
+
+      // Only add customCategory if category is "other" and value is provided
+      if (expenseFormData.category === "other" && expenseFormData.customCategory && expenseFormData.customCategory.trim()) {
+        cleanedData.customCategory = expenseFormData.customCategory;
+      }
+
+      // Only add notes if not empty
+      if (expenseFormData.notes && expenseFormData.notes.trim()) {
+        cleanedData.notes = expenseFormData.notes;
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cleanedData),
+      });
+
+      if (!res.ok) throw new Error("Failed to save expense");
+
+      toast.success(editingExpense ? "Expense updated" : "Expense added");
+      setExpenseDialogOpen(false);
+      setEditingExpense(null);
+      fetchExpenses();
+      fetchStaff();
+    } catch (error) {
+      toast.error("Failed to save expense");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size must be less than 5MB");
+      return;
+    }
+
+    setUploadingDocument(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+
+      const data = await res.json();
+      setDocumentFormData((prev) => ({ ...prev, documentUrl: data.url }));
+      toast.success("Document uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      toast.error("Failed to upload document");
+    } finally {
+      setUploadingDocument(false);
+    }
+  };
+
+  const handleSaveDocument = async () => {
+    if (!staffId || !documentFormData.description || !documentFormData.documentUrl) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/staff/${staffId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(documentFormData),
+      });
+
+      if (!res.ok) throw new Error("Failed to save document");
+
+      toast.success("Document added");
+      setDocumentDialogOpen(false);
+      setDocumentFormData({ description: "", documentUrl: "" });
+      fetchDocuments();
+    } catch (error) {
+      toast.error("Failed to save document");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -163,7 +470,8 @@ export default function StaffDetailPage() {
   return (
     <AppShell>
       <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        {/* Header */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <Button variant="outline" size="icon" onClick={() => router.back()}>
               <ArrowLeft className="w-4 h-4" />
@@ -192,7 +500,8 @@ export default function StaffDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -217,19 +526,7 @@ export default function StaffDetailPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-blue-600" />
-                Net Amount
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-blue-600">
-                ₹{(staff.totalPayments - staff.totalExpenses).toLocaleString()}
-              </p>
-            </CardContent>
-          </Card>
+          
 
           <Card>
             <CardHeader className="pb-3">
@@ -246,6 +543,7 @@ export default function StaffDetailPage() {
           </Card>
         </div>
 
+        {/* Tabs */}
         <Tabs defaultValue="details" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="details">Details</TabsTrigger>
@@ -254,6 +552,7 @@ export default function StaffDetailPage() {
             <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>
 
+          {/* Details Tab */}
           <TabsContent value="details" className="space-y-4">
             <Card>
               <CardHeader>
@@ -270,7 +569,7 @@ export default function StaffDetailPage() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Gender</Label>
-                  <p className="font-medium">{staff.gender}</p>
+                  <p className="font-medium capitalize">{staff.gender}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Phone</Label>
@@ -330,6 +629,7 @@ export default function StaffDetailPage() {
             </Card>
           </TabsContent>
 
+          {/* Payments Tab */}
           <TabsContent value="payments" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Payment History</h3>
@@ -354,8 +654,8 @@ export default function StaffDetailPage() {
                   <Card key={payment.uid}>
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Badge className={getPaymentTypeColor(payment.type)}>{payment.type}</Badge>
                             {payment.type === "salary" && payment.month && (
                               <span className="text-sm text-muted-foreground">{formatSalaryMonth(payment.month)}</span>
@@ -363,7 +663,7 @@ export default function StaffDetailPage() {
                           </div>
                           <p className="text-2xl font-bold">₹{payment.amount.toLocaleString()}</p>
                           <div className="text-sm text-muted-foreground space-y-1">
-                            <p>Mode: {payment.mode}</p>
+                            <p>Mode: <span className="capitalize">{payment.mode}</span></p>
                             <p>Date: {toDate(payment.date).toLocaleDateString()}</p>
                             {payment.notes && <p>Notes: {payment.notes}</p>}
                           </div>
@@ -395,6 +695,7 @@ export default function StaffDetailPage() {
             )}
           </TabsContent>
 
+          {/* Expenses Tab */}
           <TabsContent value="expenses" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Expense History</h3>
@@ -419,11 +720,11 @@ export default function StaffDetailPage() {
                   <Card key={expense.uid}>
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start">
-                        <div className="space-y-1">
+                        <div className="space-y-1 flex-1">
                           <Badge>{expense.category === "other" && expense.customCategory ? expense.customCategory : expense.category}</Badge>
                           <p className="text-2xl font-bold">₹{expense.amount.toLocaleString()}</p>
                           <div className="text-sm text-muted-foreground space-y-1">
-                            <p>Mode: {expense.mode}</p>
+                            <p>Mode: <span className="capitalize">{expense.mode}</span></p>
                             <p>Date: {toDate(expense.date).toLocaleDateString()}</p>
                             {expense.notes && <p>Notes: {expense.notes}</p>}
                           </div>
@@ -455,6 +756,7 @@ export default function StaffDetailPage() {
             )}
           </TabsContent>
 
+          {/* Documents Tab */}
           <TabsContent value="documents" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Documents</h3>
@@ -511,12 +813,389 @@ export default function StaffDetailPage() {
           </TabsContent>
         </Tabs>
 
+        {/* Edit Staff Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Staff Member</DialogTitle>
+              <DialogDescription>Update staff member information</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Full Name</Label>
+                  <Input
+                    value={editFormData.name || ""}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+  <Label>Age</Label>
+  <Input
+    type="number"
+    value={editFormData.age || ""}
+    onChange={(e) => setEditFormData({ 
+      ...editFormData, 
+      age: e.target.value ? parseInt(e.target.value) : undefined 
+    })}
+  />
+</div>
+                <div className="space-y-2">
+                  <Label>Gender</Label>
+                  <Select
+                    value={editFormData.gender}
+                    onValueChange={(value: any) => setEditFormData({ ...editFormData, gender: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    value={editFormData.phone || ""}
+                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Alternate Phone</Label>
+                  <Input
+                    value={editFormData.alternatePhone || ""}
+                    onChange={(e) => setEditFormData({ ...editFormData, alternatePhone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Designation</Label>
+                  <Select
+                    value={editFormData.designation}
+                    onValueChange={(value: any) => setEditFormData({ ...editFormData, designation: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Manager">Manager</SelectItem>
+                      <SelectItem value="Cook">Cook</SelectItem>
+                      <SelectItem value="Cleaner">Cleaner</SelectItem>
+                      <SelectItem value="Security">Security</SelectItem>
+                      <SelectItem value="Maintenance">Maintenance</SelectItem>
+                      <SelectItem value="Receptionist">Receptionist</SelectItem>
+                      <SelectItem value="Accountant">Accountant</SelectItem>
+                      <SelectItem value="Driver">Driver</SelectItem>
+                      <SelectItem value="Gardener">Gardener</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {editFormData.designation === "Other" && (
+                  <div className="space-y-2">
+                    <Label>Custom Designation</Label>
+                    <Input
+                      value={editFormData.customDesignation || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, customDesignation: e.target.value })}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+  <Label>Monthly Salary</Label>
+  <Input
+    type="number"
+    value={editFormData.monthlySalary || ""}
+    onChange={(e) => setEditFormData({ 
+      ...editFormData, 
+      monthlySalary: e.target.value ? parseFloat(e.target.value) : undefined 
+    })}
+  />
+</div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select
+                    value={editFormData.status}
+                    onValueChange={(value: any) => setEditFormData({ ...editFormData, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="on_leave">On Leave</SelectItem>
+                      <SelectItem value="resigned">Resigned</SelectItem>
+                      <SelectItem value="terminated">Terminated</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={editFormData.notes || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateStaff} disabled={saving}>
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Payment Dialog */}
+        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingPayment ? "Edit Payment" : "Add Payment"}</DialogTitle>
+              <DialogDescription>
+                {editingPayment ? "Update payment details" : "Record a new payment"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              // In the Payment Dialog section:
+<div className="space-y-2">
+  <Label>Amount</Label>
+  <Input
+    type="number"
+    value={paymentFormData.amount || ""}
+    onChange={(e) => setPaymentFormData({ 
+      ...paymentFormData, 
+      amount: e.target.value ? parseFloat(e.target.value) : 0 
+    })}
+  />
+</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Payment Type</Label>
+                  <Select
+                    value={paymentFormData.type}
+                    onValueChange={(value: any) => setPaymentFormData({ ...paymentFormData, type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="salary">Salary</SelectItem>
+                      <SelectItem value="advance">Advance</SelectItem>
+                      <SelectItem value="bonus">Bonus</SelectItem>
+                      <SelectItem value="overtime">Overtime</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Mode</Label>
+                  <Select
+                    value={paymentFormData.mode}
+                    onValueChange={(value: any) => setPaymentFormData({ ...paymentFormData, mode: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="UPI">UPI</SelectItem>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {paymentFormData.type === "salary" && (
+                <div className="space-y-2">
+                  <Label>Month (YYYY-MM)</Label>
+                  <Input
+                    type="month"
+                    value={paymentFormData.month}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, month: e.target.value })}
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={paymentFormData.date}
+                  onChange={(e) => setPaymentFormData({ ...paymentFormData, date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={paymentFormData.notes}
+                  onChange={(e) => setPaymentFormData({ ...paymentFormData, notes: e.target.value })}
+                  rows={2}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPaymentDialogOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={handleSavePayment} disabled={saving}>
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Payment
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Expense Dialog */}
+        <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingExpense ? "Edit Expense" : "Add Expense"}</DialogTitle>
+              <DialogDescription>
+                {editingExpense ? "Update expense details" : "Record a new expense"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              // In the Expense Dialog section:
+<div className="space-y-2">
+  <Label>Amount</Label>
+  <Input
+    type="number"
+    value={expenseFormData.amount || ""}
+    onChange={(e) => setExpenseFormData({ 
+      ...expenseFormData, 
+      amount: e.target.value ? parseFloat(e.target.value) : 0 
+    })}
+  />
+</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select
+                    value={expenseFormData.category}
+                    onValueChange={(value: any) => setExpenseFormData({ ...expenseFormData, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fuel">Fuel</SelectItem>
+                      <SelectItem value="travel">Travel</SelectItem>
+                      <SelectItem value="food">Food</SelectItem>
+                      <SelectItem value="uniform">Uniform</SelectItem>
+                      <SelectItem value="training">Training</SelectItem>
+                      <SelectItem value="medical">Medical</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Mode</Label>
+                  <Select
+                    value={expenseFormData.mode}
+                    onValueChange={(value: any) => setExpenseFormData({ ...expenseFormData, mode: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="UPI">UPI</SelectItem>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {expenseFormData.category === "other" && (
+                <div className="space-y-2">
+                  <Label>Custom Category</Label>
+                  <Input
+                    value={expenseFormData.customCategory}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, customCategory: e.target.value })}
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={expenseFormData.date}
+                  onChange={(e) => setExpenseFormData({ ...expenseFormData, date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={expenseFormData.notes}
+                  onChange={(e) => setExpenseFormData({ ...expenseFormData, notes: e.target.value })}
+                  rows={2}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExpenseDialogOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveExpense} disabled={saving}>
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Expense
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Document Dialog */}
+        <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Upload Document</DialogTitle>
+              <DialogDescription>Add a new document for this staff member</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Input
+                  value={documentFormData.description}
+                  onChange={(e) => setDocumentFormData({ ...documentFormData, description: e.target.value })}
+                  placeholder="e.g., Aadhar Card, Resume, Certificate"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Upload File</Label>
+                <Input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleDocumentUpload}
+                  disabled={uploadingDocument}
+                />
+                {uploadingDocument && <p className="text-sm text-muted-foreground">Uploading...</p>}
+                {documentFormData.documentUrl && (
+                  <p className="text-sm text-green-600">Document uploaded successfully</p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDocumentDialogOpen(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveDocument} disabled={saving || !documentFormData.documentUrl}>
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                Save Document
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Staff Member</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete this staff member and all associated records. This action cannot be undone.
+                This will permanently delete this staff member and all associated records including payments, expenses, and documents. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

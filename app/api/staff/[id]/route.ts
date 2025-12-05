@@ -75,6 +75,7 @@ export async function PATCH(
     if (body.joiningDate) updateData.joiningDate = new Date(body.joiningDate);
     if (body.leavingDate) updateData.leavingDate = new Date(body.leavingDate);
     if (body.status) updateData.status = body.status;
+    if (body.notes !== undefined) updateData.notes = body.notes;
 
     await updateStaff(id, updateData);
 
