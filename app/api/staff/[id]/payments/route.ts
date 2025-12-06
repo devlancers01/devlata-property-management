@@ -59,15 +59,23 @@ export async function POST(
       );
     }
 
-    const paymentData = {
+    const paymentData: any = {
       amount: parseFloat(amount),
       mode,
       type,
-      month: month || undefined,
-      receiptUrl: receiptUrl || undefined,
-      notes: notes || undefined,
       date: new Date(date),
     };
+
+    // Only add optional fields if they have values
+    if (month) {
+      paymentData.month = month;
+    }
+    if (receiptUrl) {
+      paymentData.receiptUrl = receiptUrl;
+    }
+    if (notes) {
+      paymentData.notes = notes;
+    }
 
     const paymentId = await addStaffPayment(id, paymentData);
 

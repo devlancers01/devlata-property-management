@@ -58,7 +58,6 @@ export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 
 // Main Staff Model
 export interface StaffModel {
-  notes: any;
   uid: string;
   name: string;
   age: number;
@@ -74,6 +73,7 @@ export interface StaffModel {
   joiningDate: Date | Timestamp;
   leavingDate?: Date | Timestamp;
   status: StaffStatus;
+  notes?: string; // Optional notes field
   totalPayments: number; // Sum of all payments
   totalExpenses: number; // Sum of all expenses
   createdAt: Date | Timestamp;
@@ -132,6 +132,7 @@ export interface StaffFormData {
   joiningDate: Timestamp | Date;
   status: StaffStatus;
   leavingDate?: Date;
+  notes?: string;
 }
 
 export interface PaymentFormData {

@@ -27,10 +27,15 @@ export async function PATCH(
     if (body.mode) updateData.mode = body.mode;
     if (body.category) {
       updateData.category = body.category;
-      updateData.customCategory = body.category === "other" ? body.customCategory : undefined;
+      // Only add customCategory if it has a value
+      if (body.category === "other" && body.customCategory) {
+        updateData.customCategory = body.customCategory;
+      }
     }
-    if (body.receiptUrl !== undefined) updateData.receiptUrl = body.receiptUrl;
-    if (body.notes !== undefined) updateData.notes = body.notes;
+    // Only add receiptUrl if it has a value
+    if (body.receiptUrl) updateData.receiptUrl = body.receiptUrl;
+    // Only add notes if it has a value
+    if (body.notes) updateData.notes = body.notes;
     if (body.date) updateData.date = new Date(body.date);
 
     await updateStaffExpense(id, expenseId, updateData);
