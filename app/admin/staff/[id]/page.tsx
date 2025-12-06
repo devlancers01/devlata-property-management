@@ -30,7 +30,7 @@ export default function StaffDetailPage() {
   const params = useParams();
   const staffId = params?.id as string;
   const { data: session } = useSession();
-  
+
   // State management
   const [staff, setStaff] = useState<StaffModel | null>(null);
   const [payments, setPayments] = useState<StaffPayment[]>([]);
@@ -38,7 +38,7 @@ export default function StaffDetailPage() {
   const [documents, setDocuments] = useState<StaffDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+
   // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -216,7 +216,7 @@ export default function StaffDetailPage() {
     try {
       // Filter out undefined values and prepare clean data
       const cleanedData: any = {};
-      
+
       if (editFormData.name) cleanedData.name = editFormData.name;
       if (editFormData.age) cleanedData.age = editFormData.age;
       if (editFormData.gender) cleanedData.gender = editFormData.gender;
@@ -239,7 +239,7 @@ export default function StaffDetailPage() {
       });
 
       if (!res.ok) throw new Error("Failed to update");
-      
+
       toast.success("Staff updated successfully");
       setEditDialogOpen(false);
       fetchStaff();
@@ -269,7 +269,7 @@ export default function StaffDetailPage() {
       const url = editingPayment
         ? `/api/staff/${staffId}/payments/${editingPayment.uid}`
         : `/api/staff/${staffId}/payments`;
-      
+
       const method = editingPayment ? "PATCH" : "POST";
 
       // Filter out empty/undefined values
@@ -317,7 +317,7 @@ export default function StaffDetailPage() {
       const url = editingExpense
         ? `/api/staff/${staffId}/expenses/${editingExpense.uid}`
         : `/api/staff/${staffId}/expenses`;
-      
+
       const method = editingExpense ? "PATCH" : "POST";
 
       // Filter out empty/undefined values
@@ -526,7 +526,7 @@ export default function StaffDetailPage() {
             </CardContent>
           </Card>
 
-          
+
 
           <Card>
             <CardHeader className="pb-3">
@@ -830,16 +830,16 @@ export default function StaffDetailPage() {
                   />
                 </div>
                 <div className="space-y-2">
-  <Label>Age</Label>
-  <Input
-    type="number"
-    value={editFormData.age || ""}
-    onChange={(e) => setEditFormData({ 
-      ...editFormData, 
-      age: e.target.value ? parseInt(e.target.value) : undefined 
-    })}
-  />
-</div>
+                  <Label>Age</Label>
+                  <Input
+                    type="number"
+                    value={editFormData.age || ""}
+                    onChange={(e) => setEditFormData({
+                      ...editFormData,
+                      age: e.target.value ? parseInt(e.target.value) : undefined
+                    })}
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label>Gender</Label>
                   <Select
@@ -903,16 +903,16 @@ export default function StaffDetailPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-  <Label>Monthly Salary</Label>
-  <Input
-    type="number"
-    value={editFormData.monthlySalary || ""}
-    onChange={(e) => setEditFormData({ 
-      ...editFormData, 
-      monthlySalary: e.target.value ? parseFloat(e.target.value) : undefined 
-    })}
-  />
-</div>
+                  <Label>Monthly Salary</Label>
+                  <Input
+                    type="number"
+                    value={editFormData.monthlySalary || ""}
+                    onChange={(e) => setEditFormData({
+                      ...editFormData,
+                      monthlySalary: e.target.value ? parseFloat(e.target.value) : undefined
+                    })}
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select
@@ -962,18 +962,17 @@ export default function StaffDetailPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              // In the Payment Dialog section:
-<div className="space-y-2">
-  <Label>Amount</Label>
-  <Input
-    type="number"
-    value={paymentFormData.amount || ""}
-    onChange={(e) => setPaymentFormData({ 
-      ...paymentFormData, 
-      amount: e.target.value ? parseFloat(e.target.value) : 0 
-    })}
-  />
-</div>
+              <div className="space-y-2">
+                <Label>Amount</Label>
+                <Input
+                  type="number"
+                  value={paymentFormData.amount || ""}
+                  onChange={(e) => setPaymentFormData({
+                    ...paymentFormData,
+                    amount: e.target.value ? parseFloat(e.target.value) : 0
+                  })}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Payment Type</Label>
@@ -1059,18 +1058,17 @@ export default function StaffDetailPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              // In the Expense Dialog section:
-<div className="space-y-2">
-  <Label>Amount</Label>
-  <Input
-    type="number"
-    value={expenseFormData.amount || ""}
-    onChange={(e) => setExpenseFormData({ 
-      ...expenseFormData, 
-      amount: e.target.value ? parseFloat(e.target.value) : 0 
-    })}
-  />
-</div>
+              <div className="space-y-2">
+                <Label>Amount</Label>
+                <Input
+                  type="number"
+                  value={expenseFormData.amount || ""}
+                  onChange={(e) => setExpenseFormData({
+                    ...expenseFormData,
+                    amount: e.target.value ? parseFloat(e.target.value) : 0
+                  })}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category</Label>

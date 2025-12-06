@@ -1,4 +1,4 @@
-
+//models/customer.model.ts
 export type CustomerStatus = "active" | "completed" | "cancelled";
 export type IDType = "Aadhar" | "PAN" | "Driving License" | "Passport" | "Other";
 export type PaymentMode = "cash" | "UPI" | "bank";
@@ -62,6 +62,7 @@ export interface ExtraCharge {
   description: string;
   amount: number;
   date: Date | Timestamp;
+  recordInExpenses?: boolean;
 }
 
 export interface CustomerCreateInput {
@@ -90,7 +91,7 @@ export interface Refund {
   reason?: string;
   date: Date | Timestamp;
   receiptUrl?: string;
-  processedBy?: string; // User who processed the refund
+  processedBy?: string;
 }
 
 export interface GroupMemberForm extends GroupMember {

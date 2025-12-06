@@ -328,7 +328,9 @@ export async function addExtraCharge(
     .doc(customerId)
     .collection("extras")
     .add({
-      ...charge,
+      description: charge.description,
+      amount: charge.amount,
+      recordInExpenses: charge.recordInExpenses ?? true,
       date: Timestamp.now(),
     });
 

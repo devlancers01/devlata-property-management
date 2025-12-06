@@ -1,7 +1,9 @@
+//app/api/staff/[id]/expenses/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getStaffExpenses, addStaffExpense } from "@/lib/firebase/staff";
+import { syncStaffExpenseToExpense } from "@/lib/firebase/expenses";
 
 // GET /api/staff/[id]/expenses
 export async function GET(
@@ -78,6 +80,9 @@ export async function POST(
     }
 
     const expenseId = await addStaffExpense(id, expenseData);
+
+    // Sync to expenses
+    await syncStaffExpenseToExpense(id, expenseId, expenseData, "create");
 
     return NextResponse.json({ expenseId }, { status: 201 });
   } catch (error: any) {
