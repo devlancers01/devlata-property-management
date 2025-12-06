@@ -85,6 +85,7 @@ export default function CustomerDetailPage() {
   const [editingBooking, setEditingBooking] = useState(false);
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [savingBooking, setSavingBooking] = useState(false);
+  const [recordInExpenses, setRecordInExpenses] = useState(true);
 
   // Form states
   const [personalForm, setPersonalForm] = useState<any>({});
@@ -523,9 +524,11 @@ export default function CustomerDetailPage() {
     if (charge) {
       setEditingCharge(charge);
       setChargeForm({ ...charge, amount: charge.amount.toString() });
+      setRecordInExpenses(charge.recordInExpenses ?? true);
     } else {
       setEditingCharge(null);
       setChargeForm({ description: "", amount: "" });
+      setRecordInExpenses(true); // Default to true
     }
     setChargeDialogOpen(true);
   };
@@ -541,6 +544,7 @@ export default function CustomerDetailPage() {
       const chargeData = {
         description: chargeForm.description,
         amount: parseFloat(chargeForm.amount),
+        recordInExpenses,
       };
 
       if (editingCharge) {
@@ -730,24 +734,24 @@ export default function CustomerDetailPage() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <Badge className={getStatusColor(customer.status)}>{customer.status}</Badge>
-            {customer.status === "active" && 
-             session?.user?.permissions?.some((p: string) => ["bookings.delete", "bookings.edit"].includes(p)) && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  setRefundForm({
-                    amount: customer.receivedAmount.toString(),
-                    method: "cash",
-                    reason: "",
-                  });
-                  setCancelDialogOpen(true);
-                }}
-              >
-                <Ban className="w-4 h-4 mr-2" />
-                Cancel Booking
-              </Button>
-            )}
+            {customer.status === "active" &&
+              session?.user?.permissions?.some((p: string) => ["bookings.delete", "bookings.edit"].includes(p)) && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setRefundForm({
+                      amount: customer.receivedAmount.toString(),
+                      method: "cash",
+                      reason: "",
+                    });
+                    setCancelDialogOpen(true);
+                  }}
+                >
+                  <Ban className="w-4 h-4 mr-2" />
+                  Cancel Booking
+                </Button>
+              )}
             <Button variant="outline" size="sm" onClick={handleWhatsApp}>
               <MessageCircle className="w-4 h-4 mr-2" />
               WhatsApp
@@ -820,22 +824,19 @@ export default function CustomerDetailPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div
-                  className={`p-2 rounded-lg ${
-                    totals.balance > 0 ? "bg-red-100" : "bg-green-100"
-                  }`}
+                  className={`p-2 rounded-lg ${totals.balance > 0 ? "bg-red-100" : "bg-green-100"
+                    }`}
                 >
                   <IndianRupee
-                    className={`w-5 h-5 ${
-                      totals.balance > 0 ? "text-red-600" : "text-green-600"
-                    }`}
+                    className={`w-5 h-5 ${totals.balance > 0 ? "text-red-600" : "text-green-600"
+                      }`}
                   />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Balance</p>
                   <p
-                    className={`text-lg font-bold ${
-                      totals.balance > 0 ? "text-red-600" : "text-green-600"
-                    }`}
+                    className={`text-lg font-bold ${totals.balance > 0 ? "text-red-600" : "text-green-600"
+                      }`}
                   >
                     ₹{totals.balance.toLocaleString()}
                   </p>
@@ -856,7 +857,7 @@ export default function CustomerDetailPage() {
                     {Math.ceil(
                       (toDate(customer.checkOut).getTime() -
                         toDate(customer.checkIn).getTime()) /
-                        (1000 * 60 * 60 * 24)
+                      (1000 * 60 * 60 * 24)
                     )}{" "}
                     days
                   </p>
@@ -873,7 +874,7 @@ export default function CustomerDetailPage() {
             <TabsTrigger value="members">Members ({groupMembers.length})</TabsTrigger>
             <TabsTrigger value="payments">Payments ({payments.length})</TabsTrigger>
             <TabsTrigger value="charges">Charges ({extraCharges.length})</TabsTrigger>
-            {refunds.length>0 && <TabsTrigger value="refunds">Refunds ({refunds.length})</TabsTrigger>}
+            {refunds.length > 0 && <TabsTrigger value="refunds">Refunds ({refunds.length})</TabsTrigger>}
           </TabsList>
 
           {/* Details Tab */}
@@ -1981,6 +1982,20 @@ export default function CustomerDetailPage() {
                   value={chargeForm.amount || ""}
                   onChange={(e) => setChargeForm({ ...chargeForm, amount: e.target.value })}
                 />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="recordInExpenses"
+                  checked={recordInExpenses}
+                  onCheckedChange={(checked) => setRecordInExpenses(checked as boolean)}
+                />
+                <Label
+                  htmlFor="recordInExpenses"
+                  className="text-sm font-normal cursor-pointer"
+                >
+                  Record in Expenses Ledger
+                </Label>
               </div>
 
               <div className="flex gap-2 justify-end">

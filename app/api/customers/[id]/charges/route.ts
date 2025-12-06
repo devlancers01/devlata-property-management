@@ -1,8 +1,9 @@
+//app/api/customers/[id]/charges/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getExtraCharges, addExtraCharge } from "@/lib/firebase/customers";
-
+import { syncCustomerChargeToExpense } from "@/lib/firebase/expenses";
 
 // GET /api/customers/[id]/charges - Get extra charges
 export async function GET(
@@ -15,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params; // ✅ Await params
+    const { id } = await params;
 
     const charges = await getExtraCharges(id);
 
@@ -40,10 +41,10 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params; // ✅ Await params
+    const { id } = await params;
 
     const body = await req.json();
-    const { description, amount } = body;
+    const { description, amount, recordInExpenses = true } = body;
 
     if (!description || !amount || amount <= 0) {
       return NextResponse.json(
@@ -52,13 +53,19 @@ export async function POST(
       );
     }
 
-    // ✅ Build clean charge object (no optional fields for charges)
     const chargeData = {
       description,
       amount,
+      date: body?.date || new Date().toISOString().split("T")[0],
+      recordInExpenses,
     };
 
     const chargeUid = await addExtraCharge(id, chargeData);
+
+    // Sync to expenses if toggle is on
+    if (recordInExpenses) {
+      await syncCustomerChargeToExpense(id, chargeUid, chargeData, "create");
+    }
 
     return NextResponse.json({
       success: true,
