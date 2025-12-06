@@ -4,13 +4,13 @@ import { authOptions } from "@/lib/auth-config";
 import { adminStorage } from "@/lib/firebase/admin";
 
 // Increase body parser limit for this route
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "10mb",
-    },
-  },
-};
+// export const config = {
+//   api: {
+//     bodyParser: {
+//       sizeLimit: "10mb",
+//     },
+//   },
+// };
 
 export async function POST(req: NextRequest) {
   try {
