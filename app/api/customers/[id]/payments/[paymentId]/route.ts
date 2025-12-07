@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-config";
 import { adminDb } from "@/lib/firebase/admin";
 import { getCustomerById, updateCustomer } from "@/lib/firebase/customers";
 import { Timestamp } from "firebase-admin/firestore";
+import { syncCustomerPaymentToSale } from "@/lib/firebase/sales";
 
 // PATCH: Update a payment
 export async function PATCH(
@@ -65,6 +66,24 @@ export async function PATCH(
       }
     }
 
+    // Sync to sales (update)
+    try {
+      await syncCustomerPaymentToSale(
+        id,
+        paymentId,
+        {
+          amount: newAmount,
+          mode: body.mode || oldPayment?.mode || "cash",
+          type: oldPayment?.type || "advance",
+          date: oldPayment?.date ? (oldPayment.date as any).toDate() : new Date(),
+          notes: body.notes || oldPayment?.notes,
+        },
+        "update"
+      );
+    } catch (syncError) {
+      console.error("Error syncing payment update to sales:", syncError);
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Error updating payment:", error);
@@ -102,6 +121,23 @@ export async function DELETE(
 
     const payment = paymentDoc.data();
     const paymentAmount = payment?.amount || 0;
+
+    // Sync to sales (delete) - do this BEFORE deleting payment
+    try {
+      await syncCustomerPaymentToSale(
+        id,
+        paymentId,
+        {
+          amount: paymentAmount,
+          mode: payment?.mode || "cash",
+          type: payment?.type || "advance",
+          date: payment?.date ? (payment.date as any).toDate() : new Date(),
+        },
+        "delete"
+      );
+    } catch (syncError) {
+      console.error("Error syncing payment deletion to sales:", syncError);
+    }
 
     // Delete payment
     await adminDb

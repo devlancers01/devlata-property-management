@@ -15,6 +15,8 @@ export type Permission =
   | "sales.view"
   | "expenses.view"
   | "expenses.create"
+  | "expenses.edit"
+  | "expenses.delete"
   | "staff.view"
   | "settings.view"
   | "settings.edit"
@@ -44,7 +46,11 @@ export type Permission =
   | "staff.expenses.delete"
   | "staff.documents.create"
   | "staff.documents.edit"
-  | "staff.documents.delete";
+  | "staff.documents.delete"
+  | "sales.create"
+  | "sales.edit"
+  | "sales.delete"
+  | "sales.view";
 
     
   export interface PermissionMeta {
@@ -60,6 +66,17 @@ export const ALL_PERMISSIONS: PermissionMeta[] = [
   { key: "customers.create", displayName: "Create Customers", category: "customers", description: "Create new customer bookings" },
   { key: "customers.edit", displayName: "Edit Customers", category: "customers", description: "Edit customer information" },
   { key: "customers.delete", displayName: "Delete Customers", category: "customers", description: "Delete customer records" },
+
+  { key: "sales.view", displayName: "View Sales", category: "sales", description: "View sales records" },
+  { key: "sales.create", displayName: "Create Sales", category: "sales", description: "Add new sales records" },
+  { key: "sales.edit", displayName: "Edit Sales", category: "sales", description: "Modify sales records" },
+  { key: "sales.delete", displayName: "Delete Sales", category: "sales", description: "Remove sales records" },
+
+  // Expenses
+  { key: "expenses.view", displayName: "View Expenses", category: "expenses", description: "View expense records" },
+  { key: "expenses.create", displayName: "Create Expenses", category: "expenses", description: "Add new expense records" },
+  { key: "expenses.edit", displayName: "Edit Expenses", category: "expenses", description: "Modify expense records" },
+  { key: "expenses.delete", displayName: "Delete Expenses", category: "expenses", description: "Remove expense records" },
 
   // Users Management
   {

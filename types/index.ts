@@ -1,40 +1,50 @@
-export type UserRole = "admin" | "staff";
-
-export type Permission = 
+// Core Permission Type - matches roles.ts
+export type Permission =
+  // Customer permissions
   | "customers.view"
   | "customers.create"
   | "customers.edit"
   | "customers.delete"
+  // Booking permissions
   | "bookings.view"
   | "bookings.create"
   | "bookings.edit"
   | "bookings.delete"
+  // Payment permissions
   | "payments.view"
   | "payments.create"
+  // Sales permissions
   | "sales.view"
+  | "sales.create"
+  | "sales.edit"
+  | "sales.delete"
+  // Expense permissions
   | "expenses.view"
   | "expenses.create"
+  // Staff permissions
   | "staff.view"
+  | "staff.create"
+  | "staff.edit"
+  | "staff.delete"
+  // Settings permissions
   | "settings.view"
   | "settings.edit"
+  // User management permissions
   | "users.view"
   | "users.create"
   | "users.edit"
-  | "roles.manage"
+  | "users.delete"
+  // Role management permissions
   | "roles.view"
   | "roles.create"
   | "roles.edit"
   | "roles.delete";
 
-export interface RolePermissions {
-  [key: string]: Permission[];
-}
-
 export interface User {
   uid: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: "admin" | "staff";
   phone?: string;
   active: boolean;
   createdAt: Date;
@@ -51,8 +61,7 @@ export interface OTPRecord {
   createdAt: Date;
 }
 
-// Default role permissions
-export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
+export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
   admin: [
     "customers.view",
     "customers.create",
@@ -65,15 +74,25 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     "payments.view",
     "payments.create",
     "sales.view",
+    "sales.create",
+    "sales.edit",
+    "sales.delete",
     "expenses.view",
     "expenses.create",
     "staff.view",
+    "staff.create",
+    "staff.edit",
+    "staff.delete",
     "settings.view",
     "settings.edit",
     "users.view",
     "users.create",
     "users.edit",
-    "roles.manage",
+    "users.delete",
+    "roles.view",
+    "roles.create",
+    "roles.edit",
+    "roles.delete",
   ],
   staff: [
     "customers.view",

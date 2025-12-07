@@ -1,4 +1,3 @@
-//app/api/customers/[id]/charges/[chargeId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
@@ -6,6 +5,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { getCustomerById, updateCustomer } from "@/lib/firebase/customers";
 import { Timestamp } from "firebase-admin/firestore";
 import { syncCustomerChargeToExpense } from "@/lib/firebase/expenses";
+import { syncCustomerChargeToSale } from "@/lib/firebase/sales";
 
 // Helper to convert Timestamp to Date
 function toDate(value: any): Date {
@@ -48,12 +48,15 @@ export async function PATCH(
     const newAmount = body.amount || oldAmount;
     const oldRecordInExpenses = oldCharge?.recordInExpenses ?? true;
     const newRecordInExpenses = body.recordInExpenses ?? oldRecordInExpenses;
+    const oldRecordInSales = oldCharge?.recordInSales ?? true;
+    const newRecordInSales = body.recordInSales ?? oldRecordInSales;
 
     // Update charge
     const updateData: any = {};
     if (body.description) updateData.description = body.description;
     if (body.amount !== undefined) updateData.amount = body.amount;
     if (body.recordInExpenses !== undefined) updateData.recordInExpenses = body.recordInExpenses;
+    if (body.recordInSales !== undefined) updateData.recordInSales = body.recordInSales;
     updateData.updatedAt = Timestamp.now();
 
     await adminDb
@@ -101,6 +104,26 @@ export async function PATCH(
       await syncCustomerChargeToExpense(id, chargeId, chargeData, "delete");
     }
 
+    // Sync to sales
+    if (newRecordInSales) {
+      const chargeData = {
+        description: body.description || oldCharge?.description,
+        amount: newAmount,
+        date: oldCharge?.date ? toDate(oldCharge.date) : new Date(),
+        recordInSales: true,
+      };
+      await syncCustomerChargeToSale(id, chargeId, chargeData, "update");
+    } else if (oldRecordInSales && !newRecordInSales) {
+      // Toggle turned off - delete sales entry
+      const chargeData = {
+        description: oldCharge?.description || "",
+        amount: oldAmount,
+        date: oldCharge?.date ? toDate(oldCharge.date) : new Date(),
+        recordInSales: false,
+      };
+      await syncCustomerChargeToSale(id, chargeId, chargeData, "delete");
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Error updating charge:", error);
@@ -139,6 +162,7 @@ export async function DELETE(
     const charge = chargeDoc.data();
     const chargeAmount = charge?.amount || 0;
     const recordInExpenses = charge?.recordInExpenses ?? true;
+    const recordInSales = charge?.recordInSales ?? true;
 
     // Delete from expenses if it was recorded (BEFORE deleting the charge)
     if (recordInExpenses) {
@@ -149,6 +173,17 @@ export async function DELETE(
         recordInExpenses: false,
       };
       await syncCustomerChargeToExpense(id, chargeId, chargeData, "delete");
+    }
+
+    // Delete from sales if it was recorded
+    if (recordInSales) {
+      const chargeData = {
+        description: charge?.description || "",
+        amount: chargeAmount,
+        date: charge?.date ? toDate(charge.date) : new Date(),
+        recordInSales: false,
+      };
+      await syncCustomerChargeToSale(id, chargeId, chargeData, "delete");
     }
 
     // Delete charge
