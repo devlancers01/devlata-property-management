@@ -63,6 +63,7 @@ export interface ExtraCharge {
   amount: number;
   date: Date | Timestamp;
   recordInExpenses?: boolean;
+  recordInSales?: boolean;
 }
 
 export interface CustomerCreateInput {

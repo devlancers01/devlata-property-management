@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getPayments, addPayment } from "@/lib/firebase/customers";
+import { syncCustomerPaymentToSale } from "@/lib/firebase/sales";
 
 // GET /api/customers/[id]/payments - Get payment history
 export async function GET(
@@ -14,7 +15,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params; // ✅ Await params
+    const { id } = await params;
 
     const payments = await getPayments(id);
 
@@ -39,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params; // ✅ Await params
+    const { id } = await params;
 
     const body = await req.json();
     const { amount, mode, type, notes, receiptUrl } = body;
@@ -59,6 +60,25 @@ export async function POST(
       receiptUrl,
     });
 
+    // Sync to sales collection
+    try {
+      await syncCustomerPaymentToSale(
+        id,
+        paymentUid,
+        {
+          amount,
+          mode: mode || "cash",
+          type: type || "advance",
+          date: new Date(),
+          notes,
+        },
+        "create"
+      );
+    } catch (syncError) {
+      console.error("Error syncing payment to sales:", syncError);
+      // Don't fail the request if sync fails
+    }
+
     return NextResponse.json({
       success: true,
       paymentUid,
@@ -71,4 +91,3 @@ export async function POST(
     );
   }
 }
-

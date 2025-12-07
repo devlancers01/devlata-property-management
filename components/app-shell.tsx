@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <div>
               <h1 className="font-bold text-lg leading-tight">Property</h1>
-              <p className="text-xs text-muted-foreground">Management</p>
+              <p className="text-xs text-muted-foreground">Devlata Villa</p>
             </div>
           </div>
         </div>

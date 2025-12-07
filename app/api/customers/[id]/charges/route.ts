@@ -1,9 +1,9 @@
-//app/api/customers/[id]/charges/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { getExtraCharges, addExtraCharge } from "@/lib/firebase/customers";
 import { syncCustomerChargeToExpense } from "@/lib/firebase/expenses";
+import { syncCustomerChargeToSale } from "@/lib/firebase/sales";
 
 // GET /api/customers/[id]/charges - Get extra charges
 export async function GET(
@@ -44,7 +44,7 @@ export async function POST(
     const { id } = await params;
 
     const body = await req.json();
-    const { description, amount, recordInExpenses = true } = body;
+    const { description, amount, recordInExpenses = true, recordInSales = true } = body;
 
     if (!description || !amount || amount <= 0) {
       return NextResponse.json(
@@ -58,13 +58,37 @@ export async function POST(
       amount,
       date: body?.date || new Date().toISOString().split("T")[0],
       recordInExpenses,
+      recordInSales,
     };
 
     const chargeUid = await addExtraCharge(id, chargeData);
 
     // Sync to expenses if toggle is on
     if (recordInExpenses) {
-      await syncCustomerChargeToExpense(id, chargeUid, chargeData, "create");
+      try {
+        await syncCustomerChargeToExpense(id, chargeUid, {
+          description,
+          amount,
+          date: new Date(chargeData.date),
+          recordInExpenses: true,
+        }, "create");
+      } catch (syncError) {
+        console.error("Error syncing charge to expense:", syncError);
+      }
+    }
+
+    // Sync to sales if toggle is on
+    if (recordInSales) {
+      try {
+        await syncCustomerChargeToSale(id, chargeUid, {
+          description,
+          amount,
+          date: new Date(chargeData.date),
+          recordInSales: true,
+        }, "create");
+      } catch (syncError) {
+        console.error("Error syncing charge to sales:", syncError);
+      }
     }
 
     return NextResponse.json({
