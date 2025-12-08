@@ -200,7 +200,7 @@ export default function BookingsPage() {
   };
 
   const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentMonth);
-  const monthName = currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthName = currentMonth.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
   const prevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
@@ -402,7 +402,7 @@ export default function BookingsPage() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
-                Bookings for {selectedDate?.toLocaleDateString("en-US", {
+                Bookings for {selectedDate?.toLocaleDateString("en-IN", {
                   weekday: "long",
                   year: "numeric",
                   month: "long",

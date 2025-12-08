@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // Validate required fields
-    const requiredFields = ["date", "amount", "category", "description", "paymentMode"];
+    const requiredFields = ["amount", "category", "description", "paymentMode"];
 
     for (const field of requiredFields) {
       if (!body[field]) {
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const saleData = {
-      date: new Date(body.date),
+      date: body.date ? new Date(body.date) : new Date(),
       amount: body.amount,
       category: body.category,
       description: body.description,

@@ -441,7 +441,7 @@ export default function StaffDetailPage() {
   const formatSalaryMonth = (month: string) => {
     const [year, monthNum] = month.split("-");
     const date = new Date(parseInt(year), parseInt(monthNum) - 1);
-    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    return date.toLocaleDateString("enIN", { month: "long", year: "numeric" });
   };
 
   if (loading) {

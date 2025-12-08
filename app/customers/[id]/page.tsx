@@ -480,6 +480,7 @@ export default function CustomerDetailPage() {
       const paymentData = {
         amount: parseFloat(paymentForm.amount),
         mode: paymentForm.mode,
+        type: paymentForm.type || "advance",
         notes: paymentForm.notes || "",
         receiptUrl: receiptUrl || "",
       };
@@ -945,6 +946,7 @@ export default function CustomerDetailPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
+
                         <div className="space-y-2">
                           <Label>Age *</Label>
                           <Input
@@ -1842,33 +1844,57 @@ export default function CustomerDetailPage() {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
                 <div className="space-y-2">
-                  <Label>Amount (₹) *</Label>
-                  <Input
-                    type="number"
-                    value={paymentForm.amount || ""}
-                    onChange={(e) =>
-                      setPaymentForm({ ...paymentForm, amount: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Payment Mode *</Label>
-                  <Select
-                    value={paymentForm.mode}
-                    onValueChange={(value) => setPaymentForm({ ...paymentForm, mode: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="UPI">UPI</SelectItem>
-                      <SelectItem value="bank">Bank Transfer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+  <Label>Amount (₹) *</Label>
+  <Input
+    type="number"
+    value={paymentForm.amount || ""}
+    onChange={(e) =>
+      setPaymentForm({ ...paymentForm, amount: e.target.value })
+    }
+  />
+</div>
+
+<div className="space-y-2">
+  <Label>Payment Mode *</Label>
+  <Select
+    value={paymentForm.mode}
+    onValueChange={(value) =>
+      setPaymentForm({ ...paymentForm, mode: value })
+    }
+  >
+    <SelectTrigger>
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="cash">Cash</SelectItem>
+      <SelectItem value="UPI">UPI</SelectItem>
+      <SelectItem value="bank">Bank Transfer</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+
+<div className="space-y-2">
+  <Label>Type *</Label>
+  <Select
+    value={paymentForm.type}
+    onValueChange={(value) =>
+      setPaymentForm({ ...paymentForm, type: value as "advance" | "final" | "part" })
+    }
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select type" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="advance">Advance</SelectItem>
+      <SelectItem value="final">Final</SelectItem>
+      <SelectItem value="part">Part</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+
               </div>
 
               <div className="space-y-2">

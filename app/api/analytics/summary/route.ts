@@ -46,16 +46,23 @@ export async function GET(req: NextRequest) {
       expensesByCategory[exp.category] += exp.amount;
     });
 
-    // Get active bookings count
-    const customers = await getAllCustomers({ status: "active" });
-    const activeBookingsCount = customers.length;
+    // Get active and completed bookings count
+    const activeCustomers = await getAllCustomers({ status: "active" });
+    const completedCustomers = await getAllCustomers({ status: "completed" });
+    const activeBookingsCount = activeCustomers.length;
+    const completedBookingsCount = completedCustomers.length;
 
-    // Get total staff count
-    const allStaff = await getAllStaff({ status: "active" });
+    // Get active staff count
+    const activeStaff = await getAllStaff({ status: "active" });
+    const allStaff = await getAllStaff();
+    const activeStaffCount = activeStaff.length;
     const totalStaffCount = allStaff.length;
 
     // Calculate profit/loss
     const netProfitLoss = salesSummary.totalSales - totalExpenses;
+    const profitMargin = salesSummary.totalSales > 0 
+      ? (netProfitLoss / salesSummary.totalSales) * 100
+      : 0;
 
     return NextResponse.json({
       sales: {
@@ -70,16 +77,14 @@ export async function GET(req: NextRequest) {
         count: expenses.length,
         byCategory: expensesByCategory,
       },
-      profitLoss: {
+      profit: {
         net: netProfitLoss,
-        profitMargin: salesSummary.totalSales > 0 
-          ? ((netProfitLoss / salesSummary.totalSales) * 100).toFixed(2)
-          : 0,
+        margin: profitMargin,
       },
-      counts: {
-        activeBookings: activeBookingsCount,
-        totalStaff: totalStaffCount,
-      },
+      activeBookings: activeBookingsCount,
+      completedBookings: completedBookingsCount,
+      totalStaff: totalStaffCount,
+      activeStaff: activeStaffCount,
     });
   } catch (error: any) {
     console.error("Error fetching analytics summary:", error);
