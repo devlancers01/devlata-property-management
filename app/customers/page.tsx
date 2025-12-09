@@ -413,7 +413,7 @@ export default function CustomersPage() {
                             {customer.totalAmount.toLocaleString()}
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Balance:</span>{" "}
+                            <span className="text-muted-foreground">{(customer.status === `active` || customer.status === `completed`) ? `Balance:` : `Refund:`}</span>{" "}
                             <span
                               className={
                                 customer.balanceAmount > 0
@@ -421,7 +421,7 @@ export default function CustomersPage() {
                                   : "text-green-600 font-semibold"
                               }
                             >
-                              ₹{customer.balanceAmount.toLocaleString()}
+                              ₹{(customer.status === `active` || customer.status === `completed`) ? customer.balanceAmount.toLocaleString() : (customer.refundAmount || 0).toLocaleString()}
                             </span>
                           </div>
                           <div>

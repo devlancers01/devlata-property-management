@@ -390,7 +390,7 @@ export async function addRefund(
   if (customer) {
     const newReceivedAmount = customer.receivedAmount - refund.amount;
     const newRefundAmount = (customer.refundAmount || 0) + refund.amount;
-    const newBalanceAmount = customer.totalAmount - newReceivedAmount;
+    const newBalanceAmount = 0;
 
     await updateCustomer(customerId, {
       receivedAmount: newReceivedAmount,
