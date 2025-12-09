@@ -42,11 +42,45 @@ import {
   IndianRupee,
   CalendarDays,
   UserCog,
+  Upload,
+  Eye,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DonutChart, BarChart, AreaChart } from "@tremor/react"
 import { format, subDays, startOfMonth, endOfMonth, startOfYear } from "date-fns"
 import { toast } from "sonner"
+import Footer from "@/components/footer"
+
+// Helper function to convert UTC to IST
+function toIST(date: Date): Date {
+  const utcDate = new Date(date);
+  // Add 5 hours 30 minutes for IST
+  return new Date(utcDate.getTime() );
+}
+
+// Helper function to format date in dd-mm-yyyy
+function formatDateIST(date: Date): string {
+  const istDate = toIST(date);
+  const day = String(istDate.getDate()).padStart(2, '0');
+  const month = String(istDate.getMonth() + 1).padStart(2, '0');
+  const year = istDate.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+// Helper function to format date and time in IST
+function formatDateTimeIST(date: Date): string {
+  const istDate = toIST(date);
+  const day = String(istDate.getDate()).padStart(2, '0');
+  const month = String(istDate.getMonth() + 1).padStart(2, '0');
+  const year = istDate.getFullYear();
+  let hours = istDate.getHours();
+  const minutes = String(istDate.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // 0 should be 12
+  return `${day}-${month}-${year}, ${hours}:${minutes} ${ampm}`;
+}
 
 // Types
 interface AnalyticsSummary {
@@ -61,11 +95,11 @@ interface AnalyticsSummary {
     byCategory: Record<string, number>
     count: number
   }
-  profit?: {
+  profit: {
     net: number
     margin: number
   }
-  activeBookings?: number
+  activeBookings: number
   completedBookings: number
   totalStaff: number
   activeStaff: number
@@ -81,6 +115,17 @@ interface Sale {
   sourceType: string
   customerId?: string
   financialYear: string
+  receiptUrls?: string[]
+}
+
+interface Expense {
+  uid: string
+  date: string | Date
+  amount: number
+  category: string
+  description?: string
+  paymentMode?: string
+  mode?: string
 }
 
 interface QuickStat {
@@ -104,6 +149,9 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null)
   const [sales, setSales] = useState<Sale[]>([])
   const [recentCustomers, setRecentCustomers] = useState<any[]>([])
+  const [expenses, setExpenses] = useState<Expense[]>([])
+  const [expenseLedgerOpen, setExpenseLedgerOpen] = useState(false)
+  const [loadingExpenses, setLoadingExpenses] = useState(false)
   const [upcomingCheckouts, setUpcomingCheckouts] = useState<any[]>([])
   const [period, setPeriod] = useState<PeriodType>("month")
   const [dateRange, setDateRange] = useState({
@@ -119,7 +167,13 @@ export default function DashboardPage() {
     category: "stay",
     description: "",
     paymentMode: "cash",
+    date: "",
+    time: "",
+    receiptUrl: "",
   })
+  const [saleReceiptFile, setSaleReceiptFile] = useState<File | null>(null)
+  const [saleReceiptPreview, setSaleReceiptPreview] = useState<string>("")
+  const [uploadingSaleReceipt, setUploadingSaleReceipt] = useState(false)
 
   // Fetch data
   useEffect(() => {
@@ -196,6 +250,44 @@ export default function DashboardPage() {
     }
   }
 
+  const fetchExpensesLedger = async () => {
+    try {
+      setLoadingExpenses(true)
+
+      const params = new URLSearchParams()
+      if (dateRange.from) params.append("startDate", dateRange.from.toISOString())
+      if (dateRange.to) params.append("endDate", dateRange.to.toISOString())
+
+      const res = await fetch(`/api/expenses?${params}`)
+      if (!res.ok) throw new Error("Failed to fetch expenses")
+
+      const data = await res.json()
+
+      const items: Expense[] = (data.expenses || [])
+        .map((e: any) => ({
+          ...e,
+          // normalize payment mode here
+          paymentMode: e.paymentMode ?? e.mode ?? "",
+        }))
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+        )
+
+      setExpenses(items)
+    } catch (error) {
+      console.error("Error fetching expenses:", error)
+      toast.error("Failed to load expenses")
+    } finally {
+      setLoadingExpenses(false)
+    }
+  }
+
+  const handleOpenExpenseLedger = () => {
+    setExpenseLedgerOpen(true)
+    fetchExpensesLedger()
+  }
+
   const fetchRecentCustomers = async () => {
     try {
       const res = await fetch("/api/customers?status=active")
@@ -229,10 +321,29 @@ export default function DashboardPage() {
 
   const handleCreateSale = async () => {
     try {
-      if (!saleForm.amount || !saleForm.description) {
+      if (!saleForm.amount || !saleForm.description || !saleForm.date || !saleForm.time) {
         toast.error("Please fill in all required fields")
         return
       }
+
+      let receiptUrl = saleForm.receiptUrl
+
+      // Upload receipt if new file selected
+      if (saleReceiptFile) {
+        setUploadingSaleReceipt(true)
+        try {
+          receiptUrl = await uploadReceipt(saleReceiptFile)
+        } catch (error) {
+          console.error("Error uploading receipt:", error)
+          toast.error("Failed to upload receipt")
+          setUploadingSaleReceipt(false)
+          return
+        }
+        setUploadingSaleReceipt(false)
+      }
+
+      // Convert date and time to UTC
+      const saleDate = formDateTimeToDate(saleForm.date, saleForm.time)
 
       const res = await fetch("/api/sales", {
         method: "POST",
@@ -243,6 +354,8 @@ export default function DashboardPage() {
           description: saleForm.description,
           paymentMode: saleForm.paymentMode,
           sourceType: "manual",
+          date: saleDate.toISOString(),
+          receiptUrls: receiptUrl ? [receiptUrl] : [],
         }),
       })
 
@@ -250,7 +363,17 @@ export default function DashboardPage() {
 
       toast.success("Sale created successfully")
       setShowSaleDialog(false)
-      setSaleForm({ amount: "", category: "stay", description: "", paymentMode: "cash" })
+      setSaleForm({ 
+        amount: "", 
+        category: "stay", 
+        description: "", 
+        paymentMode: "cash",
+        date: "",
+        time: "",
+        receiptUrl: "",
+      })
+      setSaleReceiptFile(null)
+      setSaleReceiptPreview("")
       fetchAnalytics()
       fetchSales()
     } catch (error) {
@@ -263,6 +386,30 @@ export default function DashboardPage() {
     if (!editingSale) return
 
     try {
+      if (!saleForm.amount || !saleForm.description || !saleForm.date || !saleForm.time) {
+        toast.error("Please fill in all required fields")
+        return
+      }
+
+      let receiptUrl = saleForm.receiptUrl
+
+      // Upload receipt if new file selected
+      if (saleReceiptFile) {
+        setUploadingSaleReceipt(true)
+        try {
+          receiptUrl = await uploadReceipt(saleReceiptFile)
+        } catch (error) {
+          console.error("Error uploading receipt:", error)
+          toast.error("Failed to upload receipt")
+          setUploadingSaleReceipt(false)
+          return
+        }
+        setUploadingSaleReceipt(false)
+      }
+
+      // Convert date and time to UTC
+      const saleDate = formDateTimeToDate(saleForm.date, saleForm.time)
+
       const res = await fetch(`/api/sales/${editingSale.uid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -271,6 +418,8 @@ export default function DashboardPage() {
           category: saleForm.category,
           description: saleForm.description,
           paymentMode: saleForm.paymentMode,
+          date: saleDate.toISOString(),
+          receiptUrls: receiptUrl ? [receiptUrl] : [],
         }),
       })
 
@@ -279,7 +428,17 @@ export default function DashboardPage() {
       toast.success("Sale updated successfully")
       setShowSaleDialog(false)
       setEditingSale(null)
-      setSaleForm({ amount: "", category: "stay", description: "", paymentMode: "cash" })
+      setSaleForm({ 
+        amount: "", 
+        category: "stay", 
+        description: "", 
+        paymentMode: "cash",
+        date: "",
+        time: "",
+        receiptUrl: "",
+      })
+      setSaleReceiptFile(null)
+      setSaleReceiptPreview("")
       fetchAnalytics()
       fetchSales()
     } catch (error) {
@@ -306,18 +465,51 @@ export default function DashboardPage() {
 
   const openEditDialog = (sale: Sale) => {
     setEditingSale(sale)
+    
+    // Convert sale date to IST and extract date/time
+    const saleDate = new Date(sale.date)
+    const istDate = toIST(saleDate)
+    
+    const year = istDate.getFullYear()
+    const month = String(istDate.getMonth() + 1).padStart(2, '0')
+    const day = String(istDate.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    
+    let hours = istDate.getHours()
+    const minutes = String(istDate.getMinutes()).padStart(2, '0')
+    const ampm = hours >= 12 ? 'PM' : 'AM'
+    hours = hours % 12
+    hours = hours ? hours : 12
+    const timeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`
+    
     setSaleForm({
       amount: sale.amount.toString(),
       category: sale.category,
       description: sale.description,
       paymentMode: sale.paymentMode,
+      date: dateStr,
+      time: timeStr,
+      receiptUrl: sale.receiptUrls?.[0] || "",
     })
+    setSaleReceiptFile(null)
+    setSaleReceiptPreview("")
     setShowSaleDialog(true)
   }
 
   const openCreateDialog = () => {
     setEditingSale(null)
-    setSaleForm({ amount: "", category: "stay", description: "", paymentMode: "cash" })
+    const { date, time } = getCurrentISTDateTime()
+    setSaleForm({ 
+      amount: "", 
+      category: "stay", 
+      description: "", 
+      paymentMode: "cash",
+      date,
+      time,
+      receiptUrl: "",
+    })
+    setSaleReceiptFile(null)
+    setSaleReceiptPreview("")
     setShowSaleDialog(true)
   }
 
@@ -329,26 +521,119 @@ export default function DashboardPage() {
     }).format(amount)
   }
 
-  // Prepare chart data
+  // File upload handler
+  const handleFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setFile: (file: File | null) => void,
+    setPreview: (preview: string) => void
+  ) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setFile(file)
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setPreview(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+      } else {
+        setPreview("")
+      }
+    }
+  }
+
+  // Upload receipt to Firebase Storage
+  const uploadReceipt = async (file: File): Promise<string> => {
+    const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage")
+    const storage = getStorage()
+    
+    const timestamp = Date.now()
+    const filename = `${timestamp}_${file.name}`
+    const storageRef = ref(storage, `receipts/${filename}`)
+    
+    await uploadBytes(storageRef, file)
+    const downloadURL = await getDownloadURL(storageRef)
+    
+    return downloadURL
+  }
+
+  // Get current IST date and time for form
+  const getCurrentISTDateTime = () => {
+    const now = new Date()
+    const istDate = toIST(now)
+    
+    const year = istDate.getFullYear()
+    const month = String(istDate.getMonth() + 1).padStart(2, '0')
+    const day = String(istDate.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${day}`
+    
+    let hours = istDate.getHours()
+    const minutes = String(istDate.getMinutes()).padStart(2, '0')
+    const ampm = hours >= 12 ? 'PM' : 'AM'
+    hours = hours % 12
+    hours = hours ? hours : 12
+    const timeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`
+    
+    return { date: dateStr, time: timeStr }
+  }
+
+  // Convert form date and time to Date object
+  const formDateTimeToDate = (dateStr: string, timeStr: string): Date => {
+    // Parse date (yyyy-mm-dd)
+    const [year, month, day] = dateStr.split('-').map(Number)
+    
+    // Parse time (hh:mm AM/PM)
+    const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (!timeMatch) {
+      return new Date() // Fallback to current date
+    }
+    
+    let hours = parseInt(timeMatch[1])
+    const minutes = parseInt(timeMatch[2])
+    const ampm = timeMatch[3].toUpperCase()
+    
+    // Convert to 24-hour format
+    if (ampm === 'PM' && hours !== 12) {
+      hours += 12
+    } else if (ampm === 'AM' && hours === 12) {
+      hours = 0
+    }
+    
+    // Create date in IST
+    const istDate = new Date(year, month - 1, day, hours, minutes, 0, 0)
+    
+    // Convert IST to UTC by subtracting 5.5 hours
+    const utcDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000))
+    
+    return utcDate
+  }
+
+  // Prepare chart data - only show non-zero values
   const salesByCategoryData = analytics?.sales.byCategory
-    ? Object.entries(analytics.sales.byCategory).map(([name, value]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
-        value,
-      }))
+    ? Object.entries(analytics.sales.byCategory)
+        .filter(([_, value]) => value > 0)
+        .map(([name, value]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
+          value,
+        }))
     : []
 
   const salesByPaymentData = analytics?.sales.byPaymentMode
-    ? Object.entries(analytics.sales.byPaymentMode).map(([name, value]) => ({
-        name: name.toUpperCase(),
-        value,
-      }))
+    ? Object.entries(analytics.sales.byPaymentMode)
+        .filter(([_, value]) => value > 0)
+        .map(([name, value]) => ({
+          name: name.toUpperCase(),
+          value,
+        }))
     : []
 
   const expensesByCategoryData = analytics?.expenses.byCategory
-    ? Object.entries(analytics.expenses.byCategory).map(([name, value]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
-        value,
-      }))
+    ? Object.entries(analytics.expenses.byCategory)
+        .filter(([_, value]) => value > 0)
+        .map(([name, value]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
+          value,
+        }))
     : []
 
   const comparisonData = analytics
@@ -357,7 +642,7 @@ export default function DashboardPage() {
         { category: "Expenses", Sales: 0, Expenses: analytics.expenses.total },
         {
           category: "Profit",
-          Sales: Math.max(0, analytics?.profit?.net),
+          Sales: Math.max(0, analytics.profit.net),
           Expenses: 0,
         },
       ]
@@ -388,18 +673,17 @@ export default function DashboardPage() {
         },
         {
           title: "Net Profit",
-          value: formatCurrency(Math.abs(analytics?.profit?.net)),
-          change: `${analytics?.profit?.margin.toFixed(1)}% margin`,
-          trend: analytics?.profit?.net >= 0 ? "up" : "down",
+          value: formatCurrency(Math.abs(analytics.profit.net)),
+          change: `${analytics.profit.margin.toFixed(1)}% margin`,
+          trend: analytics.profit.net >= 0 ? "up" : "down",
           icon: TrendingUp,
-          color: analytics?.profit?.net >= 0 ? "text-emerald-600" : "text-red-600",
-          bgColor: analytics?.profit?.net >= 0 ? "bg-emerald-50" : "bg-red-50",
-          darkBgColor: analytics?.profit?.net >= 0 ? "dark:bg-emerald-950/30" : "dark:bg-red-950/30",
+          color: analytics.profit.net >= 0 ? "text-emerald-600" : "text-red-600",
+          bgColor: analytics.profit.net >= 0 ? "bg-emerald-50" : "bg-red-50",
+          darkBgColor: analytics.profit.net >= 0 ? "dark:bg-emerald-950/30" : "dark:bg-red-950/30",
         },
         {
           title: "Active Bookings",
-          value: analytics?.activeBookings?.toString() ?? "0",
-
+          value: analytics.activeBookings.toString(),
           change: `${analytics.completedBookings} completed`,
           trend: "up",
           icon: Calendar,
@@ -409,7 +693,7 @@ export default function DashboardPage() {
         },
         {
           title: "Staff Members",
-          value: analytics?.totalStaff?.toString() ?? "0",
+          value: analytics.totalStaff.toString(),
           change: `${analytics.activeStaff} active`,
           trend: "up",
           icon: UserCog,
@@ -453,7 +737,7 @@ export default function DashboardPage() {
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  {format(new Date(), "EEEE, MMMM dd, yyyy")}
+                  {formatDateTimeIST(new Date())}
                 </p>
               </div>
 
@@ -504,12 +788,27 @@ export default function DashboardPage() {
                     >
                       <stat.icon className={cn("w-6 h-6", stat.color)} />
                     </div>
-                    {stat.trend === "up" ? (
-                      <ArrowUpRight className="w-4 h-4 text-green-600" />
-                    ) : (
-                      <ArrowDownRight className="w-4 h-4 text-red-600" />
-                    )}
+
+                    <div className="flex items-center gap-1">
+                      {stat.title === "Total Expenses" && (
+                        <button
+                          type="button"
+                          onClick={handleOpenExpenseLedger}
+                          className="inline-flex items-center justify-center w-6 h-6 rounded-full border text-[10px] font-semibold text-muted-foreground hover:bg-background/60"
+                          aria-label="View expense ledger"
+                        >
+                          i
+                        </button>
+                      )}
+
+                      {stat.trend === "up" ? (
+                        <ArrowUpRight className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <ArrowDownRight className="w-4 h-4 text-red-600" />
+                      )}
+                    </div>
                   </div>
+
                   <p className="text-sm font-medium text-muted-foreground mb-1">{stat.title}</p>
                   <h3 className="text-2xl font-bold mb-1">{stat.value}</h3>
                   <p className="text-xs text-muted-foreground">{stat.change}</p>
@@ -529,14 +828,20 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <DonutChart
-                  data={salesByCategoryData}
-                  category="value"
-                  index="name"
-                  valueFormatter={formatCurrency}
-                  colors={["blue", "cyan", "indigo", "violet", "purple"]}
-                  className="h-60"
-                />
+                {salesByCategoryData.length > 0 ? (
+                  <DonutChart
+                    data={salesByCategoryData}
+                    category="value"
+                    index="name"
+                    valueFormatter={formatCurrency}
+                    colors={["blue", "cyan", "indigo", "violet", "purple"]}
+                    className="h-60"
+                  />
+                ) : (
+                  <div className="h-60 flex items-center justify-center text-muted-foreground">
+                    No data available
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -549,14 +854,20 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <DonutChart
-                  data={expensesByCategoryData}
-                  category="value"
-                  index="name"
-                  valueFormatter={formatCurrency}
-                  colors={["rose", "red", "orange", "amber", "yellow"]}
-                  className="h-60"
-                />
+                {expensesByCategoryData.length > 0 ? (
+                  <DonutChart
+                    data={expensesByCategoryData}
+                    category="value"
+                    index="name"
+                    valueFormatter={formatCurrency}
+                    colors={["rose", "red", "orange", "amber", "yellow"]}
+                    className="h-60"
+                  />
+                ) : (
+                  <div className="h-60 flex items-center justify-center text-muted-foreground">
+                    No data available
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -569,14 +880,20 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <DonutChart
-                  data={salesByPaymentData}
-                  category="value"
-                  index="name"
-                  valueFormatter={formatCurrency}
-                  colors={["emerald", "teal", "cyan"]}
-                  className="h-60"
-                />
+                {salesByPaymentData.length > 0 ? (
+                  <DonutChart
+                    data={salesByPaymentData}
+                    category="value"
+                    index="name"
+                    valueFormatter={formatCurrency}
+                    colors={["emerald", "teal", "cyan"]}
+                    className="h-60"
+                  />
+                ) : (
+                  <div className="h-60 flex items-center justify-center text-muted-foreground">
+                    No data available
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -626,8 +943,7 @@ export default function DashboardPage() {
                         <div>
                           <p className="font-semibold">{customer.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {format(new Date(customer.checkIn), "MMM dd")} -{" "}
-                            {format(new Date(customer.checkOut), "MMM dd")}
+                            {formatDateIST(new Date(customer.checkIn))} - {formatDateIST(new Date(customer.checkOut))}
                           </p>
                         </div>
                       </div>
@@ -662,7 +978,7 @@ export default function DashboardPage() {
                         <div>
                           <p className="font-semibold">{customer.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            Checkout: {format(new Date(customer.checkOut), "MMM dd, h:mm a")}
+                            Checkout: {formatDateTimeIST(new Date(customer.checkOut))}
                           </p>
                         </div>
                       </div>
@@ -717,51 +1033,57 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sales.slice(0, 5).map((sale) => (
-                      <tr key={sale.uid} className="border-b hover:bg-muted/50">
-                        <td className="py-3 px-4 text-sm">
-                          {format(new Date(sale.date), "MMM dd")}
-                        </td>
-                        <td className="py-3 px-4 text-sm">{sale.description}</td>
-                        <td className="py-3 px-4">
-                          <Badge variant="outline">
-                            {sale.category.charAt(0).toUpperCase() +
-                              sale.category.slice(1).replace(/_/g, " ")}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-sm font-medium">
-                          {formatCurrency(sale.amount)}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge>{sale.paymentMode.toUpperCase()}</Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge variant={sale.sourceType === "manual" ? "secondary" : "default"}>
-                            {sale.sourceType.replace(/_/g, " ")}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          {sale.sourceType === "manual" && (
+                    {sales.length > 0 ? (
+                      sales.slice(0, 10).map((sale) => (
+                        <tr key={sale.uid} className="border-b hover:bg-muted/50">
+                          <td className="py-3 px-4">
+                            {formatDateIST(new Date(sale.date))}
+                          </td>
+                          <td className="py-3 px-4">{sale.description}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant="outline">
+                              {sale.category.charAt(0).toUpperCase() +
+                                sale.category.slice(1).replace(/_/g, " ")}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 font-medium">
+                            {formatCurrency(sale.amount)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge>{sale.paymentMode.toUpperCase()}</Badge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant="secondary">
+                              {sale.sourceType.replace(/_/g, " ")}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4">
                             <div className="flex items-center justify-end gap-2">
                               <Button
-                                size="sm"
                                 variant="ghost"
+                                size="sm"
                                 onClick={() => openEditDialog(sale)}
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
                               <Button
-                                size="sm"
                                 variant="ghost"
+                                size="sm"
                                 onClick={() => handleDeleteSale(sale.uid)}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
-                          )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                          No sales found
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -770,9 +1092,88 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Expense Ledger Dialog */}
+      <Dialog open={expenseLedgerOpen} onOpenChange={setExpenseLedgerOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Expense Ledger</DialogTitle>
+            <DialogDescription>
+              Showing expenses for{" "}
+              {formatDateIST(dateRange.from)} – {formatDateIST(dateRange.to)} (latest first)
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 max-h-[60vh] overflow-y-auto">
+            {loadingExpenses ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                Loading expenses...
+              </div>
+            ) : expenses.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                No expenses in this range
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 pr-3 font-medium text-muted-foreground">
+                      Date
+                    </th>
+                    <th className="text-left py-2 pr-3 font-medium text-muted-foreground">
+                      Category
+                    </th>
+                    <th className="text-left py-2 pr-3 font-medium text-muted-foreground">
+                      Description
+                    </th>
+                    <th className="text-left py-2 pr-3 font-medium text-muted-foreground">
+                      Mode
+                    </th>
+                    <th className="text-right py-2 pl-3 font-medium text-muted-foreground">
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((exp) => {
+                    const paymentModeLabel = exp.mode
+                      ? String(exp.mode).toUpperCase()
+                      : "N/A"
+
+                    const categoryLabel = exp.category
+                      ? exp.category.charAt(0).toUpperCase() +
+                        exp.category.slice(1).replace(/_/g, " ")
+                      : "Uncategorized"
+
+                    return (
+                      <tr key={exp.uid} className="border-b last:border-0">
+                        <td className="py-2 pr-3 w-24">
+                          {exp.date ? formatDateIST(new Date(exp.date)) : "-"}
+                        </td>
+                        <td className="py-2 pr-3">
+                          <Badge variant="outline">{categoryLabel}</Badge>
+                        </td>
+                        <td className="py-2 pr-3 w-64 text-muted-foreground">
+                          {exp.description || "-"}
+                        </td>
+                        <td className="py-2 pr-3">
+                          <Badge>{paymentModeLabel}</Badge>
+                        </td>
+                        <td className="py-2 pl-3 text-right font-medium">
+                          {formatCurrency(exp.amount || 0)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Sale Dialog */}
-      <Dialog open={showSaleDialog} onClose={(open) => setShowSaleDialog(open)}>
-        <DialogContent>
+      <Dialog open={showSaleDialog} onOpenChange={setShowSaleDialog}>
+        <DialogContent className="max-w-3xl max-h-[100vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingSale ? "Edit Sale" : "Add New Sale"}</DialogTitle>
             <DialogDescription>
@@ -781,49 +1182,64 @@ export default function DashboardPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount (₹)</Label>
-              <Input
-                id="amount"
-                type="number"
-                value={saleForm.amount}
-                onChange={(e) => setSaleForm({ ...saleForm, amount: e.target.value })}
-                placeholder="0.00"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount (₹) *</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  value={saleForm.amount}
+                  onChange={(e) => setSaleForm({ ...saleForm, amount: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category">Category *</Label>
+                <Select
+                  value={saleForm.category}
+                  onValueChange={(v) => setSaleForm({ ...saleForm, category: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stay">Stay</SelectItem>
+                    <SelectItem value="cuisine">Cuisine</SelectItem>
+                    <SelectItem value="extra_services">Extra Services</SelectItem>
+                    <SelectItem value="advance">Advance</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date">Date *</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={saleForm.date}
+                  onChange={(e) => setSaleForm({ ...saleForm, date: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="time">Time (IST) *</Label>
+                <Input
+                  id="time"
+                  type="text"
+                  value={saleForm.time}
+                  onChange={(e) => setSaleForm({ ...saleForm, time: e.target.value })}
+                  placeholder="12:00 PM"
+                />
+                <p className="text-xs text-muted-foreground">Format: HH:MM AM/PM</p>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select
-                value={saleForm.category}
-                onValueChange={(v) => setSaleForm({ ...saleForm, category: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="stay">Stay</SelectItem>
-                  <SelectItem value="cuisine">Cuisine</SelectItem>
-                  <SelectItem value="extra_services">Extra Services</SelectItem>
-                  <SelectItem value="advance">Advance</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={saleForm.description}
-                onChange={(e) => setSaleForm({ ...saleForm, description: e.target.value })}
-                placeholder="Enter description..."
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="paymentMode">Payment Mode</Label>
+              <Label htmlFor="paymentMode">Payment Mode *</Label>
               <Select
                 value={saleForm.paymentMode}
                 onValueChange={(v) => setSaleForm({ ...saleForm, paymentMode: v })}
@@ -838,18 +1254,101 @@ export default function DashboardPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                value={saleForm.description}
+                onChange={(e) => setSaleForm({ ...saleForm, description: e.target.value })}
+                placeholder="Enter description..."
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Receipt (Optional)</Label>
+              {saleForm.receiptUrl && !saleReceiptFile && (
+                <div className="flex items-center gap-2 mb-2">
+                  <a
+                    href={saleForm.receiptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Eye className="w-4 h-4" />
+                    View Current Receipt
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSaleForm({ ...saleForm, receiptUrl: "" })
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                  </Button>
+                </div>
+              )}
+              <div className="border-2 border-dashed rounded-lg p-4">
+                <input
+                  type="file"
+                  id="saleReceipt"
+                  accept="image/*,.pdf"
+                  onChange={(e) =>
+                    handleFileChange(e, setSaleReceiptFile, setSaleReceiptPreview)
+                  }
+                  className="hidden"
+                />
+                <label
+                  htmlFor="saleReceipt"
+                  className="cursor-pointer flex flex-col items-center gap-2"
+                >
+                  <Upload className="w-8 h-8 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Click to upload receipt (optional)
+                  </span>
+                </label>
+              </div>
+              {saleReceiptPreview && (
+                <img
+                  src={saleReceiptPreview}
+                  alt="Receipt Preview"
+                  className="mt-2 max-w-full h-32 object-contain rounded border"
+                />
+              )}
+            </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSaleDialog(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowSaleDialog(false)
+                setSaleReceiptFile(null)
+                setSaleReceiptPreview("")
+              }}
+              disabled={uploadingSaleReceipt}
+            >
               Cancel
             </Button>
-            <Button onClick={editingSale ? handleUpdateSale : handleCreateSale}>
-              {editingSale ? "Update" : "Create"}
+            <Button 
+              onClick={editingSale ? handleUpdateSale : handleCreateSale}
+              disabled={uploadingSaleReceipt}
+            >
+              {uploadingSaleReceipt ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                editingSale ? "Update" : "Create"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Footer />
     </AppShell>
   )
 }

@@ -44,6 +44,7 @@ export interface ExpenseModel {
   date: Date | Timestamp; // IST date
   amount: number;
   category: ExpenseCategory;
+  mode: string; // Mode of payment
   description: string;
   receiptUrls: string[]; // Array of receipt URLs
 

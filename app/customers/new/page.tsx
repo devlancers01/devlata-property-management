@@ -16,11 +16,13 @@ import { ArrowLeft, ArrowRight, Check, Upload, AlertCircle, Plus, Trash2, X } fr
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase/config";
 import { toast } from "sonner";
+import { getAuth } from "firebase/auth";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 import type { GroupMember, GroupMemberForm } from "@/models/customer.model";
 import { PaymentMode, PaymentType, Payment } from "@/models/customer.model";
+import Footer from "@/components/footer";
 
 export default function NewCustomerPage() {
     const router = useRouter();
@@ -69,10 +71,8 @@ export default function NewCustomerPage() {
         return value instanceof Date && !isNaN(value.getTime());
     };
 
-
     // Check for booking conflicts
     const checkConflicts = async () => {
-        // ✅ Properly validate the dates
         if (!isValidDate(watchCheckIn) || !isValidDate(watchCheckOut)) {
             setConflictWarning("");
             return;
@@ -102,8 +102,7 @@ export default function NewCustomerPage() {
         }
     };
 
-
-    // Handle file upload
+    // Handle file upload with proper Firebase auth token
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: "idProof" | "receipt") => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -142,14 +141,54 @@ export default function NewCustomerPage() {
         }
     };
 
+    // Replace the uploadFile function in your new customer page
+
     const uploadFile = async (file: File, folder: string): Promise<string> => {
-        const fileName = `${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, `${folder}/${fileName}`);
+        try {
+            const auth = getAuth();
+            if (!auth.currentUser) {
+                throw new Error("User not authenticated. Please sign in again.");
+            }
 
-        await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(storageRef);
+            const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+            const storageRef = ref(storage, `${folder}/${fileName}`);
 
-        return downloadURL;
+            // Upload with metadata
+            const metadata = {
+                contentType: file.type,
+                customMetadata: {
+                    uploadedBy: auth.currentUser.uid,
+                }
+            };
+
+            await uploadBytes(storageRef, file, metadata);
+
+            // Get download URL with retry logic
+            let downloadURL = "";
+            let retries = 3;
+            while (retries > 0) {
+                try {
+                    downloadURL = await getDownloadURL(storageRef);
+                    break;
+                } catch (error: any) {
+                    if (error.code === 'storage/object-not-found' && retries > 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        retries--;
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+
+            return downloadURL;
+        } catch (error: any) {
+            console.error("Upload error:", error);
+            if (error.code === "storage/unauthorized") {
+                toast.error("Upload failed: Please sign in again");
+                throw new Error("Authentication required. Please refresh and sign in again.");
+            }
+            throw error;
+        }
     };
 
     // Group Members Management
@@ -210,130 +249,138 @@ export default function NewCustomerPage() {
         setGroupMembers(groupMembers.filter((member) => member.uid !== id));
     };
 
-    const onSubmit = async (data: CustomerFormData) => {
-        setLoading(true);
+   const onSubmit = async (data: CustomerFormData) => {
+    setLoading(true);
 
-        try {
-            // Upload ID proof if present
-            let idProofUrl = "";
-            if (idProofFile) {
-                setUploadingFile(true);
-                idProofUrl = await uploadFile(idProofFile, "id-proofs");
-                setUploadingFile(false);
-            }
-
-            // Upload advance receipt if present
-            let advanceReceiptUrl = "";
-            if (advanceReceiptFile) {
-                setUploadingFile(true);
-                advanceReceiptUrl = await uploadFile(advanceReceiptFile, "receipts");
-                setUploadingFile(false);
-            }
-
-            // ✅ Build clean customer payload (remove advancePaymentMode and advanceReceiptUrl)
-            const customerPayload: any = {
-                name: data.name,
-                age: data.age,
-                gender: data.gender,
-                phone: data.phone,
-                email: data.email,
-                address: data.address,
-                idType: data.idType,
-                vehicleNumber: data.vehicleNumber,
-                checkIn: data.checkIn.toISOString(),
-                checkOut: data.checkOut.toISOString(),
-                checkInTime: data.checkInTime,
-                checkOutTime: data.checkOutTime,
-                stayCharges: data.stayCharges,
-                cuisineCharges: data.cuisineCharges || 0,
-                receivedAmount: data.receivedAmount || 0,
-                advancePaymentMode: data.advancePaymentMode || "cash",
-                advanceReceiptUrl: advanceReceiptUrl || "",
-                members: groupMembers,
-            };
-
-            // Add optional fields only if they exist
-            if (data.idValue) customerPayload.idValue = data.idValue;
-            if (idProofUrl) customerPayload.idProofUrl = idProofUrl;
-            if (data.instructions) customerPayload.instructions = data.instructions;
-
-            // Submit customer data
-            const res = await fetch("/api/customers", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(customerPayload),
-            });
-
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.error || "Failed to create customer");
-            }
-
-            const result = await res.json();
-            const customerId = result.customer.uid; // ✅ Get customer ID from response
-
-            // Upload group member ID proofs and prepare clean data
-            const membersToAdd = await Promise.all(
-                groupMembers.map(async (member) => {
-                    const cleanMember: any = {
-                        name: member.name,
-                        age: member.age,
-                        gender: member.gender,
-                        idType: member.idType,
-                    };
-
-                    // Add optional fields only if they exist
-                    if (member.idValue) cleanMember.idValue = member.idValue;
-
-                    // Upload ID proof if present
-                    if (member.idProofFile) {
-                        const url = await uploadFile(member.idProofFile, "id-proofs");
-                        cleanMember.idProofUrl = url;
-                    }
-
-                    return cleanMember;
-                })
-            );
-
-            // Add group members to subcollection
-            if (membersToAdd.length > 0) {
-                await Promise.all(
-                    membersToAdd.map((member) =>
-                        fetch(`/api/customers/${customerId}/members`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(member),
-                        })
-                    )
-                );
-            }
-
-            toast.success("Customer created successfully!");
-            router.push(`/customers/${customerId}`);
-        } catch (error: any) {
-            console.error("Submit error:", error);
-            toast.error(error.message || "Failed to create customer");
-        } finally {
-            setLoading(false);
+    try {
+        // Upload ID proof if present
+        let idProofUrl = "";
+        if (idProofFile) {
+            setUploadingFile(true);
+            idProofUrl = await uploadFile(idProofFile, "id-proofs");
             setUploadingFile(false);
         }
-    };
+
+        // Upload advance receipt if present
+        let advanceReceiptUrl = "";
+        if (advanceReceiptFile) {
+            setUploadingFile(true);
+            advanceReceiptUrl = await uploadFile(advanceReceiptFile, "receipts");
+            setUploadingFile(false);
+        }
+
+        // Build customer payload
+        const customerPayload: any = {
+            name: data.name,
+            age: data.age,
+            gender: data.gender,
+            phone: data.phone,
+            email: data.email,
+            address: data.address,
+            idType: data.idType,
+            vehicleNumber: data.vehicleNumber,
+            checkIn: data.checkIn.toISOString(),
+            checkOut: data.checkOut.toISOString(),
+            checkInTime: data.checkInTime,
+            checkOutTime: data.checkOutTime,
+            stayCharges: data.stayCharges,
+            cuisineCharges: data.cuisineCharges || 0,
+            receivedAmount: data.receivedAmount || 0,
+            advancePaymentMode: data.advancePaymentMode || "cash",
+            advanceReceiptUrl: advanceReceiptUrl || "",
+        };
+
+        if (data.idValue) customerPayload.idValue = data.idValue;
+        if (idProofUrl) customerPayload.idProofUrl = idProofUrl;
+        if (data.instructions) customerPayload.instructions = data.instructions;
+
+        // Create customer
+        const res = await fetch("/api/customers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(customerPayload),
+        });
+
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || "Failed to create customer");
+        }
+
+        const result = await res.json();
+        const customerId = result.customer.uid;
+
+        // Upload group member ID proofs SEQUENTIALLY
+        if (groupMembers.length > 0) {
+            setUploadingFile(true);
+            
+            for (const member of groupMembers) {
+                const cleanMember: any = {
+                    name: member.name,
+                    age: member.age,
+                    gender: member.gender,
+                    idType: member.idType,
+                };
+
+                if (member.idValue) cleanMember.idValue = member.idValue;
+
+                // Upload ID proof if present
+                if (member.idProofFile) {
+                    try {
+                        const url = await uploadFile(member.idProofFile, "id-proofs");
+                        cleanMember.idProofUrl = url;
+                    } catch (uploadError) {
+                        console.error(`Failed to upload ID for ${member.name}:`, uploadError);
+                        toast.error(`Failed to upload ID for ${member.name}`);
+                        // Continue with other members
+                    }
+                }
+
+                // Add member to database
+                try {
+                    await fetch(`/api/customers/${customerId}/members`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(cleanMember),
+                    });
+                } catch (memberError) {
+                    console.error(`Failed to add member ${member.name}:`, memberError);
+                    toast.error(`Failed to add member ${member.name}`);
+                }
+            }
+            
+            setUploadingFile(false);
+        }
+
+        toast.success("Customer created successfully!");
+        router.push(`/customers/${customerId}`);
+    } catch (error: any) {
+        console.error("Submit error:", error);
+        toast.error(error.message || "Failed to create customer");
+    } finally {
+        setLoading(false);
+        setUploadingFile(false);
+    }
+};
 
     const nextStep = async () => {
         const fieldsToValidate = getFieldsForStep(currentStep);
         const isValid = await trigger(fieldsToValidate);
 
         if (isValid) {
-            // Special validation for step 2 (ID Proof)
-            if (currentStep === 2) {
-                if (!watchIdValue && !idProofFile) {
-                    toast.error("Either ID number or ID proof image is required");
+            // Special validation for step 1 (Booking dates)
+            if (currentStep === 1) {
+                if (conflictWarning) {
+                    toast.error("Please resolve booking conflicts before proceeding");
                     return;
                 }
             }
 
+            // Special validation for step 3 (ID Proof)
             if (currentStep === 3) {
-                await checkConflicts();
+                if (!watchIdValue && !idProofFile) {
+                    toast.error("Either ID number or ID proof image is required");
+                    return;
+                }
             }
 
             setCurrentStep((prev) => Math.min(prev + 1, 6) as Step);
@@ -346,16 +393,18 @@ export default function NewCustomerPage() {
 
     const getFieldsForStep = (step: Step): (keyof CustomerFormData)[] => {
         switch (step) {
-            case 1:
-                return ["name", "age", "phone", "email", "address"];
-            case 2:
-                return ["idType"];
-            case 3:
+            case 1: // Booking Details
                 return ["checkIn", "checkOut", "vehicleNumber"];
-            case 4:
-                return []; // Group members are optional
-            case 5:
+            case 2: // Personal Details
+                return ["name", "age", "phone", "email", "address"];
+            case 3: // ID Proof
+                return ["idType"];
+            case 4: // Group members are optional
+                return [];
+            case 5: // Financial Details
                 return ["stayCharges"];
+            case 6: // Review step
+                return [];
             default:
                 return [];
         }
@@ -396,13 +445,13 @@ export default function NewCustomerPage() {
                         </div>
                         <div className="mt-3 sm:mt-4 grid grid-cols-6 gap-1 text-xs sm:text-sm">
                             <span className={currentStep >= 1 ? "text-primary font-medium text-center" : "text-slate-400 text-center"}>
-                                Personal
+                                Booking
                             </span>
                             <span className={currentStep >= 2 ? "text-primary font-medium text-center" : "text-slate-400 text-center"}>
-                                ID
+                                Personal
                             </span>
                             <span className={currentStep >= 3 ? "text-primary font-medium text-center" : "text-slate-400 text-center"}>
-                                Booking
+                                ID
                             </span>
                             <span className={currentStep >= 4 ? "text-primary font-medium text-center" : "text-slate-400 text-center"}>
                                 Members
@@ -416,13 +465,13 @@ export default function NewCustomerPage() {
                         </div>
                     </div>
 
-                    <form onSubmit={handleSubmit(onSubmit)}>
+                    <form>
                         <Card className="shadow-lg">
                             <CardHeader className="border-b">
                                 <CardTitle className="text-lg sm:text-xl">
-                                    {currentStep === 1 && "Personal Details"}
-                                    {currentStep === 2 && "ID Proof"}
-                                    {currentStep === 3 && "Booking Details"}
+                                    {currentStep === 1 && "Booking Details"}
+                                    {currentStep === 2 && "Personal Details"}
+                                    {currentStep === 3 && "ID Proof"}
                                     {currentStep === 4 && "Group Members (Optional)"}
                                     {currentStep === 5 && "Financial Details"}
                                     {currentStep === 6 && "Review & Confirm"}
@@ -430,8 +479,93 @@ export default function NewCustomerPage() {
                             </CardHeader>
 
                             <CardContent className="p-4 sm:p-6">
-                                {/* Step 1: Personal Details */}
+                                {/* Step 1: Booking Details (MOVED TO FIRST) */}
                                 {currentStep === 1 && (
+                                    <div className="space-y-4 sm:space-y-6">
+                                        {conflictWarning && (
+                                            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex gap-3">
+                                                <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
+                                                <p className="text-sm text-yellow-800">{conflictWarning}</p>
+                                            </div> 
+                                        )}
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="checkIn">Check-In Date *</Label>
+                                                <Input
+                                                    id="checkIn"
+                                                    type="date"
+                                                    {...register("checkIn", { valueAsDate: true })}
+                                                    className={errors.checkIn ? "border-red-500" : ""}
+                                                    onBlur={checkConflicts}
+                                                />
+                                                {errors.checkIn && (
+                                                    <p className="text-xs text-red-600">{errors.checkIn.message}</p>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="checkInTime">Check-In Time</Label>
+                                                <Input
+                                                    id="checkInTime"
+                                                    type="time"
+                                                    {...register("checkInTime")}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="checkOut">Check-Out Date *</Label>
+                                                <Input
+                                                    id="checkOut"
+                                                    type="date"
+                                                    {...register("checkOut", { valueAsDate: true })}
+                                                    className={errors.checkOut ? "border-red-500" : ""}
+                                                    onBlur={checkConflicts}
+                                                />
+                                                {errors.checkOut && (
+                                                    <p className="text-xs text-red-600">{errors.checkOut.message}</p>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="checkOutTime">Check-Out Time</Label>
+                                                <Input
+                                                    id="checkOutTime"
+                                                    type="time"
+                                                    {...register("checkOutTime")}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="vehicleNumber">Vehicle Number *</Label>
+                                            <Input
+                                                id="vehicleNumber"
+                                                {...register("vehicleNumber")}
+                                                placeholder="MH01AB1234"
+                                                className={errors.vehicleNumber ? "border-red-500" : ""}
+                                            />
+                                            {errors.vehicleNumber && (
+                                                <p className="text-xs text-red-600">{errors.vehicleNumber.message}</p>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="instructions">Special Instructions (Optional)</Label>
+                                            <Textarea
+                                                id="instructions"
+                                                {...register("instructions")}
+                                                placeholder="Any special requests or notes..."
+                                                rows={3}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 2: Personal Details (MOVED TO SECOND) */}
+                                {currentStep === 2 && (
                                     <div className="space-y-4 sm:space-y-6">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div className="space-y-2">
@@ -527,8 +661,8 @@ export default function NewCustomerPage() {
                                     </div>
                                 )}
 
-                                {/* Step 2: ID Proof - Flexible (Either number OR image) */}
-                                {currentStep === 2 && (
+                                {/* Step 3: ID Proof */}
+                                {currentStep === 3 && (
                                     <div className="space-y-4 sm:space-y-6">
                                         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                             <p className="text-sm text-blue-800">
@@ -624,91 +758,6 @@ export default function NewCustomerPage() {
                                     </div>
                                 )}
 
-                                {/* Step 3: Booking Details */}
-                                {currentStep === 3 && (
-                                    <div className="space-y-4 sm:space-y-6">
-                                        {conflictWarning && (
-                                            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex gap-3">
-                                                <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
-                                                <p className="text-sm text-yellow-800">{conflictWarning}</p>
-                                            </div>
-                                        )}
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="checkIn">Check-In Date *</Label>
-                                                <Input
-                                                    id="checkIn"
-                                                    type="date"
-                                                    {...register("checkIn", { valueAsDate: true })}
-                                                    className={errors.checkIn ? "border-red-500" : ""}
-                                                    onBlur={checkConflicts}
-                                                />
-                                                {errors.checkIn && (
-                                                    <p className="text-xs text-red-600">{errors.checkIn.message}</p>
-                                                )}
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="checkInTime">Check-In Time</Label>
-                                                <Input
-                                                    id="checkInTime"
-                                                    type="time"
-                                                    {...register("checkInTime")}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="checkOut">Check-Out Date *</Label>
-                                                <Input
-                                                    id="checkOut"
-                                                    type="date"
-                                                    {...register("checkOut", { valueAsDate: true })}
-                                                    className={errors.checkOut ? "border-red-500" : ""}
-                                                    onBlur={checkConflicts}
-                                                />
-                                                {errors.checkOut && (
-                                                    <p className="text-xs text-red-600">{errors.checkOut.message}</p>
-                                                )}
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="checkOutTime">Check-Out Time</Label>
-                                                <Input
-                                                    id="checkOutTime"
-                                                    type="time"
-                                                    {...register("checkOutTime")}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label htmlFor="vehicleNumber">Vehicle Number *</Label>
-                                            <Input
-                                                id="vehicleNumber"
-                                                {...register("vehicleNumber")}
-                                                placeholder="MH01AB1234"
-                                                className={errors.vehicleNumber ? "border-red-500" : ""}
-                                            />
-                                            {errors.vehicleNumber && (
-                                                <p className="text-xs text-red-600">{errors.vehicleNumber.message}</p>
-                                            )}
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label htmlFor="instructions">Special Instructions (Optional)</Label>
-                                            <Textarea
-                                                id="instructions"
-                                                {...register("instructions")}
-                                                placeholder="Any special requests or notes..."
-                                                rows={3}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
                                 {/* Step 4: Group Members */}
                                 {currentStep === 4 && (
                                     <div className="space-y-4 sm:space-y-6">
@@ -776,7 +825,6 @@ export default function NewCustomerPage() {
                                                                     />
                                                                 </div>
 
-                                                                {/* Gender  */}
                                                                 <div className="space-y-2">
                                                                     <Label>Gender *</Label>
                                                                     <Select
@@ -877,7 +925,7 @@ export default function NewCustomerPage() {
                                     </div>
                                 )}
 
-                                {/* Step 5: Financial Details with Payment Mode & Receipt */}
+                                {/* Step 5: Financial Details */}
                                 {currentStep === 5 && (
                                     <div className="space-y-4 sm:space-y-6">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -893,16 +941,6 @@ export default function NewCustomerPage() {
                                                 {errors.stayCharges && (
                                                     <p className="text-xs text-red-600">{errors.stayCharges.message}</p>
                                                 )}
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <Label htmlFor="cuisineCharges">Cuisine Charges (₹)</Label>
-                                                <Input
-                                                    id="cuisineCharges"
-                                                    type="number"
-                                                    {...register("cuisineCharges", { valueAsNumber: true })}
-                                                    placeholder="0"
-                                                />
                                             </div>
                                         </div>
 
@@ -921,6 +959,7 @@ export default function NewCustomerPage() {
                                                 <Label htmlFor="advancePaymentMode">Payment Mode</Label>
                                                 <Select
                                                     onValueChange={(value) => setValue("advancePaymentMode", value as any)}
+                                                    defaultValue="cash"
                                                 >
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="Select payment mode" />
@@ -999,10 +1038,6 @@ export default function NewCustomerPage() {
                                                 <span className="text-slate-600">Stay Charges:</span>
                                                 <span className="font-medium">₹{watchStayCharges || 0}</span>
                                             </div>
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-slate-600">Cuisine Charges:</span>
-                                                <span className="font-medium">₹{watchCuisineCharges || 0}</span>
-                                            </div>
                                             <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
                                                 <span className="text-slate-900 font-semibold">Total Amount:</span>
                                                 <span className="font-bold text-lg">₹{totalAmount}</span>
@@ -1026,7 +1061,7 @@ export default function NewCustomerPage() {
                                     </div>
                                 )}
 
-                                {/* Step 6: Review */}
+                                {/* Step 6: Review (NO AUTO-SUBMIT) */}
                                 {currentStep === 6 && (
                                     <div className="space-y-4 sm:space-y-6">
                                         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1036,26 +1071,6 @@ export default function NewCustomerPage() {
                                         </div>
 
                                         <div className="space-y-4">
-                                            <div>
-                                                <h3 className="font-semibold text-slate-900 mb-2">
-                                                    Personal Details
-                                                </h3>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                                                    <div>
-                                                        <span className="text-slate-600">Name:</span> {watch("name")}
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-600">Age:</span> {watch("age")}
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-600">Phone:</span> {watch("phone")}
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-slate-600">Email:</span> {watch("email")}
-                                                    </div>
-                                                </div>
-                                            </div>
-
                                             <div>
                                                 <h3 className="font-semibold text-slate-900 mb-2">
                                                     Booking Details
@@ -1073,6 +1088,26 @@ export default function NewCustomerPage() {
                                                     <div>
                                                         <span className="text-slate-600">Vehicle:</span>{" "}
                                                         {watch("vehicleNumber")}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="font-semibold text-slate-900 mb-2">
+                                                    Personal Details
+                                                </h3>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                                    <div>
+                                                        <span className="text-slate-600">Name:</span> {watch("name")}
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-600">Age:</span> {watch("age")}
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-600">Phone:</span> {watch("phone")}
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-600">Email:</span> {watch("email")}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1125,51 +1160,57 @@ export default function NewCustomerPage() {
 
                             {/* Navigation Buttons */}
                             <div className="border-t p-4 sm:p-6 flex flex-col sm:flex-row gap-3">
-                                {currentStep > 1 && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={prevStep}
-                                        className="w-full sm:w-auto order-2 sm:order-1"
-                                    >
-                                        <ArrowLeft className="w-4 h-4 mr-2" />
-                                        Previous
-                                    </Button>
-                                )}
+                        {currentStep > 1 && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={prevStep}
+                                disabled={loading}
+                                className="w-full sm:w-auto order-2 sm:order-1"
+                            >
+                                <ArrowLeft className="w-4 h-4 mr-2" />
+                                Previous
+                            </Button>
+                        )}
 
-                                {currentStep < 6 ? (
-                                    <Button
-                                        type="button"
-                                        onClick={nextStep}
-                                        className="w-full sm:w-auto sm:ml-auto order-1 sm:order-2"
-                                    >
-                                        Next
-                                        <ArrowRight className="w-4 h-4 ml-2" />
-                                    </Button>
+                        {currentStep < 6 ? (
+                            <Button
+                                type="button"
+                                onClick={nextStep}
+                                disabled={loading}
+                                className="w-full sm:w-auto sm:ml-auto order-1 sm:order-2"
+                            >
+                                Next
+                                <ArrowRight className="w-4 h-4 ml-2" />
+                            </Button>
+                        ) : (
+                            <Button
+                                type="button"
+                                onClick={handleSubmit(onSubmit)}  
+                                disabled={loading || uploadingFile}
+                                className="w-full sm:w-auto sm:ml-auto order-1 sm:order-2"
+                            >
+                                {loading || uploadingFile ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                        {uploadingFile ? "Uploading..." : "Creating..."}
+                                    </>
                                 ) : (
-                                    <Button
-                                        type="submit"
-                                        disabled={loading || uploadingFile}
-                                        className="w-full sm:w-auto sm:ml-auto order-1 sm:order-2"
-                                    >
-                                        {loading || uploadingFile ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                                {uploadingFile ? "Uploading..." : "Creating..."}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Check className="w-4 h-4 mr-2" />
-                                                Confirm Booking
-                                            </>
-                                        )}
-                                    </Button>
+                                    <>
+                                        <Check className="w-4 h-4 mr-2" />
+                                        Confirm Booking
+                                    </>
                                 )}
-                            </div>
+                            </Button>
+                        )}
+                    </div>
                         </Card>
                     </form>
+                    {/* Navigation Buttons - at the bottom of CardContent */}
+                    
                 </div>
             </div>
+            <Footer />
         </AppShell>
     );
 }

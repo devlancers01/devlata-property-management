@@ -57,6 +57,7 @@ export async function PATCH(
     if (body.date) updateData.date = new Date(body.date);
     if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
     if (body.category) updateData.category = body.category;
+    if (body.mode) updateData.mode = body.mode;
     if (body.description) updateData.description = body.description;
     if (body.receiptUrls) updateData.receiptUrls = body.receiptUrls;
     if (body.yearlySubCategory) updateData.yearlySubCategory = body.yearlySubCategory;
