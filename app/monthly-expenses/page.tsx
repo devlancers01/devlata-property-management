@@ -17,6 +17,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase/config";
 
 const MONTHLY_CATEGORIES: MonthlyExpenseCategory[] = ["food", "miscellaneous", "service", "maintenance", "staff"];
+const MODES = ["cash", "upi", "card", "other"];
 
 function toDate(value: any): Date {
   if (value instanceof Date) return value;
@@ -43,6 +44,7 @@ export default function MonthlyExpensesPage() {
     date: new Date().toISOString().split("T")[0],
     amount: "",
     category: "food" as MonthlyExpenseCategory,
+    mode: "cash",
     description: "",
     receiptUrls: [] as string[],
   });
@@ -138,6 +140,7 @@ export default function MonthlyExpensesPage() {
         date: toDate(expense.date).toISOString().split("T")[0],
         amount: expense.amount.toString(),
         category: expense.category as MonthlyExpenseCategory,
+        mode: expense.mode || "",
         description: expense.description,
         receiptUrls: expense.receiptUrls || [],
       });
@@ -147,6 +150,7 @@ export default function MonthlyExpensesPage() {
         date: new Date().toISOString().split("T")[0],
         amount: "",
         category: "food",
+        mode: "cash",
         description: "",
         receiptUrls: [],
       });
@@ -177,6 +181,7 @@ export default function MonthlyExpensesPage() {
         date: formData.date,
         amount: parseFloat(formData.amount),
         category: formData.category,
+        mode: formData.mode,
         description: formData.description,
         receiptUrls,
       };
@@ -317,6 +322,7 @@ export default function MonthlyExpensesPage() {
                   <th className="p-3 text-left font-semibold">Date</th>
                   <th className="p-3 text-left font-semibold">Category</th>
                   <th className="p-3 text-left font-semibold">Description</th>
+                  <th className="p-3 text-left font-semibold">Mode</th>
                   <th className="p-3 text-right font-semibold">Amount</th>
                   <th className="p-3 text-center font-semibold">Receipts</th>
                   <th className="p-3 text-center font-semibold">Actions</th>
@@ -328,6 +334,7 @@ export default function MonthlyExpensesPage() {
                     <td className="p-3">{toDate(expense.date).toLocaleDateString("en-IN")}</td>
                     <td className="p-3 capitalize">{expense.category}</td>
                     <td className="p-3">{expense.description}</td>
+                    <td className="p-3 capitalize">{expense.mode || "-"}</td>
                     <td className="p-3 text-right font-semibold">₹{expense.amount.toLocaleString()}</td>
                     <td className="p-3 text-center">
                       {expense.receiptUrls && expense.receiptUrls.length > 0 ? (
@@ -388,25 +395,50 @@ export default function MonthlyExpensesPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Category *</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, category: value as MonthlyExpenseCategory })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MONTHLY_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Category *</Label>
+                    <Select
+                      value={formData.category}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, category: value as MonthlyExpenseCategory })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MONTHLY_CATEGORIES.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Mode *</Label>
+                    <Select
+                      value={formData.mode}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, mode:value as string } )
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MODES.map((mode) => (
+                          <SelectItem key={mode} value={mode}>
+                            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">

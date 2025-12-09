@@ -47,6 +47,7 @@ export async function createExpense(data: Partial<ExpenseModel>): Promise<string
       date: Timestamp.fromDate(ensureDate(data.date)),
       amount: data.amount!,
       category: data.category!,
+      mode: data.mode || "",
       description: data.description!,
       receiptUrls: data.receiptUrls || [],
       sourceType: data.sourceType || "manual",

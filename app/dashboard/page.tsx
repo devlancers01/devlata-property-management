@@ -1093,7 +1093,7 @@ export default function DashboardPage() {
 
       {/* Expense Ledger Dialog */}
       <Dialog open={expenseLedgerOpen} onOpenChange={setExpenseLedgerOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Expense Ledger</DialogTitle>
             <DialogDescription>
@@ -1134,8 +1134,8 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {expenses.map((exp) => {
-                    const paymentModeLabel = exp.paymentMode
-                      ? String(exp.paymentMode).toUpperCase()
+                    const paymentModeLabel = exp.mode
+                      ? String(exp.mode).toUpperCase()
                       : "N/A"
 
                     const categoryLabel = exp.category
@@ -1145,13 +1145,13 @@ export default function DashboardPage() {
 
                     return (
                       <tr key={exp.uid} className="border-b last:border-0">
-                        <td className="py-2 pr-3">
+                        <td className="py-2 pr-3 w-24">
                           {exp.date ? formatDateIST(new Date(exp.date)) : "-"}
                         </td>
                         <td className="py-2 pr-3">
                           <Badge variant="outline">{categoryLabel}</Badge>
                         </td>
-                        <td className="py-2 pr-3 text-muted-foreground">
+                        <td className="py-2 pr-3 w-64 text-muted-foreground">
                           {exp.description || "-"}
                         </td>
                         <td className="py-2 pr-3">
@@ -1172,7 +1172,7 @@ export default function DashboardPage() {
 
       {/* Sale Dialog */}
       <Dialog open={showSaleDialog} onOpenChange={setShowSaleDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[100vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingSale ? "Edit Sale" : "Add New Sale"}</DialogTitle>
             <DialogDescription>
