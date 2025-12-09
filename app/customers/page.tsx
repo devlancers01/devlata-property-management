@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Plus, Search, Eye, Loader2, Calendar, X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CustomerModel } from "@/models/customer.model";
+import Footer from "@/components/footer";
 
 // Helper to safely convert to Date in IST
 function toDate(value: any): Date {
@@ -511,6 +512,7 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+      <Footer />
     </AppShell>
   );
 }

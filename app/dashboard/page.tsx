@@ -50,6 +50,7 @@ import { cn } from "@/lib/utils"
 import { DonutChart, BarChart, AreaChart } from "@tremor/react"
 import { format, subDays, startOfMonth, endOfMonth, startOfYear } from "date-fns"
 import { toast } from "sonner"
+import Footer from "@/components/footer"
 
 // Helper function to convert UTC to IST
 function toIST(date: Date): Date {
@@ -1347,6 +1348,7 @@ export default function DashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Footer />
     </AppShell>
   )
 }

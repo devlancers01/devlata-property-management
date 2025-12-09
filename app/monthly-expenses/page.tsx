@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import type { ExpenseModel, MonthlyExpenseCategory } from "@/models/expense.model";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase/config";
+import Footer from "@/components/footer";
 
 const MONTHLY_CATEGORIES: MonthlyExpenseCategory[] = ["food", "miscellaneous", "service", "maintenance", "staff"];
 const MODES = ["cash", "upi", "card", "other"];
@@ -337,14 +338,25 @@ export default function MonthlyExpensesPage() {
                     <td className="p-3 capitalize">{expense.mode || "-"}</td>
                     <td className="p-3 text-right font-semibold">₹{expense.amount.toLocaleString()}</td>
                     <td className="p-3 text-center">
-                      {expense.receiptUrls && expense.receiptUrls.length > 0 ? (
-                        <span className="text-sm text-muted-foreground">
-                          {expense.receiptUrls.length} file(s)
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
-                    </td>
+  {expense.receiptUrls && expense.receiptUrls.length > 0 ? (
+    <div className="flex flex-col flex-wrap gap-2 justify-center">
+      {expense.receiptUrls.map((url, index) => (
+        <a
+          key={index}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline text-sm"
+        >
+          Receipt {index + 1}
+        </a>
+      ))}
+    </div>
+  ) : (
+    <span className="text-sm text-muted-foreground">-</span>
+  )}
+</td>
+
                     <td className="p-3">
                       <div className="flex gap-2 justify-center">
                         <Button variant="ghost" size="sm" onClick={() => openDialog(expense)}>
@@ -547,6 +559,7 @@ export default function MonthlyExpensesPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      <Footer />
     </AppShell>
   );
 }

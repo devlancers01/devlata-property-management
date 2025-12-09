@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LogOut, Lock } from "lucide-react"
 import { useRouter } from "next/navigation"
+import Footer from "@/components/footer"
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -125,6 +126,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+      <Footer />
     </AppShell>
   )
 }

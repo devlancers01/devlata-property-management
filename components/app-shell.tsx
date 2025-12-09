@@ -17,7 +17,7 @@ const navigation = [
   { name: "Monthly Expenses", href: "/monthly-expenses", icon: Wallet },
   { name: "Yearly Expenses", href: "/yearly-expenses", icon: TrendingUp },
   { name: "Booking Calendar", href: "/bookings", icon: Calendar },
-  { name: "Settings", href: "/settings", icon: Settings },
+  // { name: "Settings", href: "/settings", icon: Settings },
 ]
 
 const adminNavigation = [

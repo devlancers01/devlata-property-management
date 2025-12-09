@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Booking } from "@/models/booking.model";
 import type { CustomerModel } from "@/models/customer.model";
+import Footer from "@/components/footer";
 
 export default function BookingsPage() {
   const router = useRouter();
@@ -505,6 +506,7 @@ export default function BookingsPage() {
           </DialogContent>
         </Dialog>
       </div>
+      <Footer />
     </AppShell>
   );
 }
