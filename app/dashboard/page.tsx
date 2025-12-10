@@ -52,8 +52,6 @@ import { BarChart } from "@/components/ui/bar-chart"
 import { format, subDays, startOfMonth, endOfMonth, startOfYear } from "date-fns"
 import { toast } from "sonner"
 
-import Footer from "@/components/footer"
-
 // Helper function to convert UTC to IST
 function toIST(date: Date): Date {
   const utcDate = new Date(date);
