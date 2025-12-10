@@ -10,9 +10,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { LayoutDashboard, Users, Wallet, Calendar, Settings, Menu, Building2, TrendingUp, Shield, UserCog } from "lucide-react"
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
+import { permission } from "process"
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Customer Entry", href: "/customers", icon: Users },
   { name: "Monthly Expenses", href: "/monthly-expenses", icon: Wallet },
   { name: "Yearly Expenses", href: "/yearly-expenses", icon: TrendingUp },
@@ -21,6 +21,7 @@ const navigation = [
 ]
 
 const adminNavigation = [
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, permission: "sales.view" },
   { name: "User Management", href: "/admin/users", icon: UserCog, permission: "users.view" },
   { name: "Roles & Permissions", href: "/admin/roles", icon: Shield, permission: "roles.view" },
   { name: "Staff Management", href: "/admin/staff", icon: Users, permission: "staff.view" },

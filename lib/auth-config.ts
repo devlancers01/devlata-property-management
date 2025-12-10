@@ -107,13 +107,13 @@ export const authOptions: NextAuthOptions = {
 
         async redirect({ url, baseUrl }) {
             if (url.startsWith("/api/auth/callback")) {
-                return `${baseUrl}/dashboard`;
+                return `${baseUrl}/customers`;
             }
 
             if (url.startsWith("/")) return `${baseUrl}${url}`;
             if (url.startsWith(baseUrl)) return url;
 
-            return `${baseUrl}/dashboard`;
+            return `${baseUrl}/customers`;
         },
     },
 

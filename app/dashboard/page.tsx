@@ -47,16 +47,18 @@ import {
   Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { DonutChart, BarChart, AreaChart } from "@tremor/react"
+import { DonutChart } from "@/components/ui/donut-chart"
+import { BarChart } from "@/components/ui/bar-chart"
 import { format, subDays, startOfMonth, endOfMonth, startOfYear } from "date-fns"
 import { toast } from "sonner"
+
 import Footer from "@/components/footer"
 
 // Helper function to convert UTC to IST
 function toIST(date: Date): Date {
   const utcDate = new Date(date);
   // Add 5 hours 30 minutes for IST
-  return new Date(utcDate.getTime() );
+  return new Date(utcDate.getTime());
 }
 
 // Helper function to format date in dd-mm-yyyy
@@ -295,7 +297,7 @@ export default function DashboardPage() {
 
       const data = await res.json()
       const customers = data.customers || []
-      
+
       // Get recent check-ins (last 3)
       const recent = customers
         .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -306,7 +308,7 @@ export default function DashboardPage() {
       const now = new Date()
       const tomorrow = new Date(now)
       tomorrow.setDate(tomorrow.getDate() + 1)
-      
+
       const upcoming = customers
         .filter((c: any) => {
           const checkOut = new Date(c.checkOut)
@@ -363,10 +365,10 @@ export default function DashboardPage() {
 
       toast.success("Sale created successfully")
       setShowSaleDialog(false)
-      setSaleForm({ 
-        amount: "", 
-        category: "stay", 
-        description: "", 
+      setSaleForm({
+        amount: "",
+        category: "stay",
+        description: "",
         paymentMode: "cash",
         date: "",
         time: "",
@@ -428,10 +430,10 @@ export default function DashboardPage() {
       toast.success("Sale updated successfully")
       setShowSaleDialog(false)
       setEditingSale(null)
-      setSaleForm({ 
-        amount: "", 
-        category: "stay", 
-        description: "", 
+      setSaleForm({
+        amount: "",
+        category: "stay",
+        description: "",
         paymentMode: "cash",
         date: "",
         time: "",
@@ -465,23 +467,23 @@ export default function DashboardPage() {
 
   const openEditDialog = (sale: Sale) => {
     setEditingSale(sale)
-    
+
     // Convert sale date to IST and extract date/time
     const saleDate = new Date(sale.date)
     const istDate = toIST(saleDate)
-    
+
     const year = istDate.getFullYear()
     const month = String(istDate.getMonth() + 1).padStart(2, '0')
     const day = String(istDate.getDate()).padStart(2, '0')
     const dateStr = `${year}-${month}-${day}`
-    
+
     let hours = istDate.getHours()
     const minutes = String(istDate.getMinutes()).padStart(2, '0')
     const ampm = hours >= 12 ? 'PM' : 'AM'
     hours = hours % 12
     hours = hours ? hours : 12
     const timeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`
-    
+
     setSaleForm({
       amount: sale.amount.toString(),
       category: sale.category,
@@ -499,10 +501,10 @@ export default function DashboardPage() {
   const openCreateDialog = () => {
     setEditingSale(null)
     const { date, time } = getCurrentISTDateTime()
-    setSaleForm({ 
-      amount: "", 
-      category: "stay", 
-      description: "", 
+    setSaleForm({
+      amount: "",
+      category: "stay",
+      description: "",
       paymentMode: "cash",
       date,
       time,
@@ -546,14 +548,14 @@ export default function DashboardPage() {
   const uploadReceipt = async (file: File): Promise<string> => {
     const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage")
     const storage = getStorage()
-    
+
     const timestamp = Date.now()
     const filename = `${timestamp}_${file.name}`
     const storageRef = ref(storage, `receipts/${filename}`)
-    
+
     await uploadBytes(storageRef, file)
     const downloadURL = await getDownloadURL(storageRef)
-    
+
     return downloadURL
   }
 
@@ -561,19 +563,19 @@ export default function DashboardPage() {
   const getCurrentISTDateTime = () => {
     const now = new Date()
     const istDate = toIST(now)
-    
+
     const year = istDate.getFullYear()
     const month = String(istDate.getMonth() + 1).padStart(2, '0')
     const day = String(istDate.getDate()).padStart(2, '0')
     const dateStr = `${year}-${month}-${day}`
-    
+
     let hours = istDate.getHours()
     const minutes = String(istDate.getMinutes()).padStart(2, '0')
     const ampm = hours >= 12 ? 'PM' : 'AM'
     hours = hours % 12
     hours = hours ? hours : 12
     const timeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`
-    
+
     return { date: dateStr, time: timeStr }
   }
 
@@ -581,127 +583,127 @@ export default function DashboardPage() {
   const formDateTimeToDate = (dateStr: string, timeStr: string): Date => {
     // Parse date (yyyy-mm-dd)
     const [year, month, day] = dateStr.split('-').map(Number)
-    
+
     // Parse time (hh:mm AM/PM)
     const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i)
     if (!timeMatch) {
       return new Date() // Fallback to current date
     }
-    
+
     let hours = parseInt(timeMatch[1])
     const minutes = parseInt(timeMatch[2])
     const ampm = timeMatch[3].toUpperCase()
-    
+
     // Convert to 24-hour format
     if (ampm === 'PM' && hours !== 12) {
       hours += 12
     } else if (ampm === 'AM' && hours === 12) {
       hours = 0
     }
-    
+
     // Create date in IST
     const istDate = new Date(year, month - 1, day, hours, minutes, 0, 0)
-    
+
     // Convert IST to UTC by subtracting 5.5 hours
     const utcDate = new Date(istDate.getTime() - (5.5 * 60 * 60 * 1000))
-    
+
     return utcDate
   }
 
   // Prepare chart data - only show non-zero values
   const salesByCategoryData = analytics?.sales.byCategory
     ? Object.entries(analytics.sales.byCategory)
-        .filter(([_, value]) => value > 0)
-        .map(([name, value]) => ({
-          name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
-          value,
-        }))
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
+        value,
+      }))
     : []
 
   const salesByPaymentData = analytics?.sales.byPaymentMode
     ? Object.entries(analytics.sales.byPaymentMode)
-        .filter(([_, value]) => value > 0)
-        .map(([name, value]) => ({
-          name: name.toUpperCase(),
-          value,
-        }))
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({
+        name: name.toUpperCase(),
+        value,
+      }))
     : []
 
   const expensesByCategoryData = analytics?.expenses.byCategory
     ? Object.entries(analytics.expenses.byCategory)
-        .filter(([_, value]) => value > 0)
-        .map(([name, value]) => ({
-          name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
-          value,
-        }))
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " "),
+        value,
+      }))
     : []
 
   const comparisonData = analytics
     ? [
-        { category: "Revenue", Sales: analytics.sales.total, Expenses: 0 },
-        { category: "Expenses", Sales: 0, Expenses: analytics.expenses.total },
-        {
-          category: "Profit",
-          Sales: Math.max(0, analytics.profit.net),
-          Expenses: 0,
-        },
-      ]
+      { category: "Revenue", Sales: analytics.sales.total, Expenses: 0 },
+      { category: "Expenses", Sales: 0, Expenses: analytics.expenses.total },
+      {
+        category: "Profit",
+        Sales: Math.max(0, analytics.profit.net),
+        Expenses: 0,
+      },
+    ]
     : []
 
   // Quick stats
   const stats: QuickStat[] = analytics
     ? [
-        {
-          title: "Total Revenue",
-          value: formatCurrency(analytics.sales.total),
-          change: `${analytics.sales.count} sales`,
-          trend: "up",
-          icon: DollarSign,
-          color: "text-blue-600",
-          bgColor: "bg-blue-50",
-          darkBgColor: "dark:bg-blue-950/30",
-        },
-        {
-          title: "Total Expenses",
-          value: formatCurrency(analytics.expenses.total),
-          change: `${analytics.expenses.count} items`,
-          trend: "down",
-          icon: Receipt,
-          color: "text-red-600",
-          bgColor: "bg-red-50",
-          darkBgColor: "dark:bg-red-950/30",
-        },
-        {
-          title: "Net Profit",
-          value: formatCurrency(Math.abs(analytics.profit.net)),
-          change: `${analytics.profit.margin.toFixed(1)}% margin`,
-          trend: analytics.profit.net >= 0 ? "up" : "down",
-          icon: TrendingUp,
-          color: analytics.profit.net >= 0 ? "text-emerald-600" : "text-red-600",
-          bgColor: analytics.profit.net >= 0 ? "bg-emerald-50" : "bg-red-50",
-          darkBgColor: analytics.profit.net >= 0 ? "dark:bg-emerald-950/30" : "dark:bg-red-950/30",
-        },
-        {
-          title: "Active Bookings",
-          value: analytics.activeBookings.toString(),
-          change: `${analytics.completedBookings} completed`,
-          trend: "up",
-          icon: Calendar,
-          color: "text-purple-600",
-          bgColor: "bg-purple-50",
-          darkBgColor: "dark:bg-purple-950/30",
-        },
-        {
-          title: "Staff Members",
-          value: analytics.totalStaff.toString(),
-          change: `${analytics.activeStaff} active`,
-          trend: "up",
-          icon: UserCog,
-          color: "text-amber-600",
-          bgColor: "bg-amber-50",
-          darkBgColor: "dark:bg-amber-950/30",
-        },
-      ]
+      {
+        title: "Total Revenue",
+        value: formatCurrency(analytics.sales.total),
+        change: `${analytics.sales.count} sales`,
+        trend: "up",
+        icon: DollarSign,
+        color: "text-blue-600",
+        bgColor: "bg-blue-50",
+        darkBgColor: "dark:bg-blue-950/30",
+      },
+      {
+        title: "Total Expenses",
+        value: formatCurrency(analytics.expenses.total),
+        change: `${analytics.expenses.count} items`,
+        trend: "down",
+        icon: Receipt,
+        color: "text-red-600",
+        bgColor: "bg-red-50",
+        darkBgColor: "dark:bg-red-950/30",
+      },
+      {
+        title: "Net Profit",
+        value: formatCurrency(Math.abs(analytics.profit.net)),
+        change: `${analytics.profit.margin.toFixed(1)}% margin`,
+        trend: analytics.profit.net >= 0 ? "up" : "down",
+        icon: TrendingUp,
+        color: analytics.profit.net >= 0 ? "text-emerald-600" : "text-red-600",
+        bgColor: analytics.profit.net >= 0 ? "bg-emerald-50" : "bg-red-50",
+        darkBgColor: analytics.profit.net >= 0 ? "dark:bg-emerald-950/30" : "dark:bg-red-950/30",
+      },
+      {
+        title: "Active Bookings",
+        value: analytics.activeBookings.toString(),
+        change: `${analytics.completedBookings} completed`,
+        trend: "up",
+        icon: Calendar,
+        color: "text-purple-600",
+        bgColor: "bg-purple-50",
+        darkBgColor: "dark:bg-purple-950/30",
+      },
+      {
+        title: "Staff Members",
+        value: analytics.totalStaff.toString(),
+        change: `${analytics.activeStaff} active`,
+        trend: "up",
+        icon: UserCog,
+        color: "text-amber-600",
+        bgColor: "bg-amber-50",
+        darkBgColor: "dark:bg-amber-950/30",
+      },
+    ]
     : []
 
   if (loading) {
@@ -836,6 +838,8 @@ export default function DashboardPage() {
                     valueFormatter={formatCurrency}
                     colors={["blue", "cyan", "indigo", "violet", "purple"]}
                     className="h-60"
+                    showAnimation={true}
+                    showLabel={true}
                   />
                 ) : (
                   <div className="h-60 flex items-center justify-center text-muted-foreground">
@@ -862,6 +866,8 @@ export default function DashboardPage() {
                     valueFormatter={formatCurrency}
                     colors={["rose", "red", "orange", "amber", "yellow"]}
                     className="h-60"
+                    showAnimation={true}
+                    showLabel={true}
                   />
                 ) : (
                   <div className="h-60 flex items-center justify-center text-muted-foreground">
@@ -886,8 +892,10 @@ export default function DashboardPage() {
                     category="value"
                     index="name"
                     valueFormatter={formatCurrency}
-                    colors={["emerald", "teal", "cyan"]}
+                    colors={["emerald", "teal", "green"]}
                     className="h-60"
+                    showAnimation={true}
+                    showLabel={true}
                   />
                 ) : (
                   <div className="h-60 flex items-center justify-center text-muted-foreground">
@@ -914,6 +922,9 @@ export default function DashboardPage() {
                   valueFormatter={formatCurrency}
                   className="h-60"
                   yAxisWidth={80}
+                  showAnimation={true}
+                  showLegend={true}
+                  showGridLines={true}
                 />
               </CardContent>
             </Card>
@@ -1141,7 +1152,7 @@ export default function DashboardPage() {
 
                     const categoryLabel = exp.category
                       ? exp.category.charAt(0).toUpperCase() +
-                        exp.category.slice(1).replace(/_/g, " ")
+                      exp.category.slice(1).replace(/_/g, " ")
                       : "Uncategorized"
 
                     return (
@@ -1321,8 +1332,8 @@ export default function DashboardPage() {
           </div>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setShowSaleDialog(false)
                 setSaleReceiptFile(null)
@@ -1332,7 +1343,7 @@ export default function DashboardPage() {
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={editingSale ? handleUpdateSale : handleCreateSale}
               disabled={uploadingSaleReceipt}
             >
