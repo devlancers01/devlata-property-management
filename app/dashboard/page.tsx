@@ -51,7 +51,6 @@ import { DonutChart } from "@/components/ui/donut-chart"
 import { BarChart } from "@/components/ui/bar-chart"
 import { format, subDays, startOfMonth, endOfMonth, startOfYear } from "date-fns"
 import { toast } from "sonner"
-import "@tremor/react/dist/index.js"
 
 // Helper function to convert UTC to IST
 function toIST(date: Date): Date {
