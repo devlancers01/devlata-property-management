@@ -22,6 +22,7 @@ type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 import type { GroupMember, GroupMemberForm } from "@/models/customer.model";
 import { PaymentMode, PaymentType, Payment } from "@/models/customer.model";
+import Footer from "@/components/footer";
 
 export default function NewCustomerPage() {
     const router = useRouter();
@@ -140,19 +141,44 @@ export default function NewCustomerPage() {
         }
     };
 
+    // Replace the uploadFile function in your new customer page
+
     const uploadFile = async (file: File, folder: string): Promise<string> => {
         try {
-            // Check if user is authenticated
             const auth = getAuth();
             if (!auth.currentUser) {
                 throw new Error("User not authenticated. Please sign in again.");
             }
 
-            const fileName = `${Date.now()}_${file.name}`;
+            const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
             const storageRef = ref(storage, `${folder}/${fileName}`);
 
-            await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(storageRef);
+            // Upload with metadata
+            const metadata = {
+                contentType: file.type,
+                customMetadata: {
+                    uploadedBy: auth.currentUser.uid,
+                }
+            };
+
+            await uploadBytes(storageRef, file, metadata);
+
+            // Get download URL with retry logic
+            let downloadURL = "";
+            let retries = 3;
+            while (retries > 0) {
+                try {
+                    downloadURL = await getDownloadURL(storageRef);
+                    break;
+                } catch (error: any) {
+                    if (error.code === 'storage/object-not-found' && retries > 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        retries--;
+                    } else {
+                        throw error;
+                    }
+                }
+            }
 
             return downloadURL;
         } catch (error: any) {
@@ -223,114 +249,118 @@ export default function NewCustomerPage() {
         setGroupMembers(groupMembers.filter((member) => member.uid !== id));
     };
 
-    const onSubmit = async (data: CustomerFormData) => {
-        setLoading(true);
+   const onSubmit = async (data: CustomerFormData) => {
+    setLoading(true);
 
-        try {
-            // Upload ID proof if present
-            let idProofUrl = "";
-            if (idProofFile) {
-                setUploadingFile(true);
-                idProofUrl = await uploadFile(idProofFile, "id-proofs");
-                setUploadingFile(false);
-            }
-
-            // Upload advance receipt if present
-            let advanceReceiptUrl = "";
-            if (advanceReceiptFile) {
-                setUploadingFile(true);
-                advanceReceiptUrl = await uploadFile(advanceReceiptFile, "receipts");
-                setUploadingFile(false);
-            }
-
-            // Build clean customer payload
-            const customerPayload: any = {
-                name: data.name,
-                age: data.age,
-                gender: data.gender,
-                phone: data.phone,
-                email: data.email,
-                address: data.address,
-                idType: data.idType,
-                vehicleNumber: data.vehicleNumber,
-                checkIn: data.checkIn.toISOString(),
-                checkOut: data.checkOut.toISOString(),
-                checkInTime: data.checkInTime,
-                checkOutTime: data.checkOutTime,
-                stayCharges: data.stayCharges,
-                cuisineCharges: data.cuisineCharges || 0,
-                receivedAmount: data.receivedAmount || 0,
-                advancePaymentMode: data.advancePaymentMode || "cash",
-                advanceReceiptUrl: advanceReceiptUrl || "",
-                members: groupMembers,
-            };
-
-            // Add optional fields only if they exist
-            if (data.idValue) customerPayload.idValue = data.idValue;
-            if (idProofUrl) customerPayload.idProofUrl = idProofUrl;
-            if (data.instructions) customerPayload.instructions = data.instructions;
-
-            // Submit customer data
-            const res = await fetch("/api/customers", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(customerPayload),
-            });
-
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.error || "Failed to create customer");
-            }
-
-            const result = await res.json();
-            const customerId = result.customer.uid;
-
-            // Upload group member ID proofs and prepare clean data
-            const membersToAdd = await Promise.all(
-                groupMembers.map(async (member) => {
-                    const cleanMember: any = {
-                        name: member.name,
-                        age: member.age,
-                        gender: member.gender,
-                        idType: member.idType,
-                    };
-
-                    // Add optional fields only if they exist
-                    if (member.idValue) cleanMember.idValue = member.idValue;
-
-                    // Upload ID proof if present
-                    if (member.idProofFile) {
-                        const url = await uploadFile(member.idProofFile, "id-proofs");
-                        cleanMember.idProofUrl = url;
-                    }
-
-                    return cleanMember;
-                })
-            );
-
-            // Add group members to subcollection
-            if (membersToAdd.length > 0) {
-                await Promise.all(
-                    membersToAdd.map((member) =>
-                        fetch(`/api/customers/${customerId}/members`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(member),
-                        })
-                    )
-                );
-            }
-
-            toast.success("Customer created successfully!");
-            router.push(`/customers/${customerId}`);
-        } catch (error: any) {
-            console.error("Submit error:", error);
-            toast.error(error.message || "Failed to create customer");
-        } finally {
-            setLoading(false);
+    try {
+        // Upload ID proof if present
+        let idProofUrl = "";
+        if (idProofFile) {
+            setUploadingFile(true);
+            idProofUrl = await uploadFile(idProofFile, "id-proofs");
             setUploadingFile(false);
         }
-    };
+
+        // Upload advance receipt if present
+        let advanceReceiptUrl = "";
+        if (advanceReceiptFile) {
+            setUploadingFile(true);
+            advanceReceiptUrl = await uploadFile(advanceReceiptFile, "receipts");
+            setUploadingFile(false);
+        }
+
+        // Build customer payload
+        const customerPayload: any = {
+            name: data.name,
+            age: data.age,
+            gender: data.gender,
+            phone: data.phone,
+            email: data.email,
+            address: data.address,
+            idType: data.idType,
+            vehicleNumber: data.vehicleNumber,
+            checkIn: data.checkIn.toISOString(),
+            checkOut: data.checkOut.toISOString(),
+            checkInTime: data.checkInTime,
+            checkOutTime: data.checkOutTime,
+            stayCharges: data.stayCharges,
+            cuisineCharges: data.cuisineCharges || 0,
+            receivedAmount: data.receivedAmount || 0,
+            advancePaymentMode: data.advancePaymentMode || "cash",
+            advanceReceiptUrl: advanceReceiptUrl || "",
+        };
+
+        if (data.idValue) customerPayload.idValue = data.idValue;
+        if (idProofUrl) customerPayload.idProofUrl = idProofUrl;
+        if (data.instructions) customerPayload.instructions = data.instructions;
+
+        // Create customer
+        const res = await fetch("/api/customers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(customerPayload),
+        });
+
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || "Failed to create customer");
+        }
+
+        const result = await res.json();
+        const customerId = result.customer.uid;
+
+        // Upload group member ID proofs SEQUENTIALLY
+        if (groupMembers.length > 0) {
+            setUploadingFile(true);
+            
+            for (const member of groupMembers) {
+                const cleanMember: any = {
+                    name: member.name,
+                    age: member.age,
+                    gender: member.gender,
+                    idType: member.idType,
+                };
+
+                if (member.idValue) cleanMember.idValue = member.idValue;
+
+                // Upload ID proof if present
+                if (member.idProofFile) {
+                    try {
+                        const url = await uploadFile(member.idProofFile, "id-proofs");
+                        cleanMember.idProofUrl = url;
+                    } catch (uploadError) {
+                        console.error(`Failed to upload ID for ${member.name}:`, uploadError);
+                        toast.error(`Failed to upload ID for ${member.name}`);
+                        // Continue with other members
+                    }
+                }
+
+                // Add member to database
+                try {
+                    await fetch(`/api/customers/${customerId}/members`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(cleanMember),
+                    });
+                } catch (memberError) {
+                    console.error(`Failed to add member ${member.name}:`, memberError);
+                    toast.error(`Failed to add member ${member.name}`);
+                }
+            }
+            
+            setUploadingFile(false);
+        }
+
+        toast.success("Customer created successfully!");
+        router.push(`/customers/${customerId}`);
+    } catch (error: any) {
+        console.error("Submit error:", error);
+        toast.error(error.message || "Failed to create customer");
+    } finally {
+        setLoading(false);
+        setUploadingFile(false);
+    }
+};
 
     const nextStep = async () => {
         const fieldsToValidate = getFieldsForStep(currentStep);
@@ -435,7 +465,7 @@ export default function NewCustomerPage() {
                         </div>
                     </div>
 
-                    <form onSubmit={handleSubmit(onSubmit)}>
+                    <form>
                         <Card className="shadow-lg">
                             <CardHeader className="border-b">
                                 <CardTitle className="text-lg sm:text-xl">
@@ -456,7 +486,7 @@ export default function NewCustomerPage() {
                                             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex gap-3">
                                                 <AlertCircle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
                                                 <p className="text-sm text-yellow-800">{conflictWarning}</p>
-                                            </div>
+                                            </div> 
                                         )}
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1130,52 +1160,57 @@ export default function NewCustomerPage() {
 
                             {/* Navigation Buttons */}
                             <div className="border-t p-4 sm:p-6 flex flex-col sm:flex-row gap-3">
-                                {currentStep > 1 && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={prevStep}
-                                        disabled={loading}
-                                        className="w-full sm:w-auto order-2 sm:order-1"
-                                    >
-                                        <ArrowLeft className="w-4 h-4 mr-2" />
-                                        Previous
-                                    </Button>
-                                )}
+                        {currentStep > 1 && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={prevStep}
+                                disabled={loading}
+                                className="w-full sm:w-auto order-2 sm:order-1"
+                            >
+                                <ArrowLeft className="w-4 h-4 mr-2" />
+                                Previous
+                            </Button>
+                        )}
 
-                                {currentStep < 6 ? (
-                                    <Button
-                                        type="button"
-                                        onClick={nextStep}
-                                        className="w-full sm:w-auto sm:ml-auto order-1 sm:order-2"
-                                    >
-                                        Next
-                                        <ArrowRight className="w-4 h-4 ml-2" />
-                                    </Button>
+                        {currentStep < 6 ? (
+                            <Button
+                                type="button"
+                                onClick={nextStep}
+                                disabled={loading}
+                                className="w-full sm:w-auto sm:ml-auto order-1 sm:order-2"
+                            >
+                                Next
+                                <ArrowRight className="w-4 h-4 ml-2" />
+                            </Button>
+                        ) : (
+                            <Button
+                                type="button"
+                                onClick={handleSubmit(onSubmit)}  
+                                disabled={loading || uploadingFile}
+                                className="w-full sm:w-auto sm:ml-auto order-1 sm:order-2"
+                            >
+                                {loading || uploadingFile ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                        {uploadingFile ? "Uploading..." : "Creating..."}
+                                    </>
                                 ) : (
-                                    <Button
-                                        type="submit"
-                                        disabled={loading || uploadingFile}
-                                        className="w-full sm:w-auto sm:ml-auto order-1 sm:order-2"
-                                    >
-                                        {loading || uploadingFile ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                                {uploadingFile ? "Uploading..." : "Creating..."}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Check className="w-4 h-4 mr-2" />
-                                                Confirm Booking
-                                            </>
-                                        )}
-                                    </Button>
+                                    <>
+                                        <Check className="w-4 h-4 mr-2" />
+                                        Confirm Booking
+                                    </>
                                 )}
-                            </div>
+                            </Button>
+                        )}
+                    </div>
                         </Card>
                     </form>
+                    {/* Navigation Buttons - at the bottom of CardContent */}
+                    
                 </div>
             </div>
+            <Footer />
         </AppShell>
     );
 }

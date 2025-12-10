@@ -1357,6 +1357,7 @@ export default function DashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Footer />
     </AppShell>
   )
 }

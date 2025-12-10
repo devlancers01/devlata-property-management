@@ -66,6 +66,7 @@ function toDate(value: any): Date {
 
 import type { GroupMember, ExtraCharge } from "@/models/customer.model";
 import { PaymentMode, PaymentType, Payment } from "@/models/customer.model";
+import Footer from "@/components/footer";
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -2210,6 +2211,7 @@ export default function CustomerDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      <Footer />
     </AppShell>
   );
 }
