@@ -16,6 +16,7 @@ import type { ExpenseModel, YearlySubCategory } from "@/models/expense.model";
 import { getCurrentFinancialYear, getFinancialYearOptions, getFinancialYearEndDate } from "@/models/expense.model";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase/config";
+import Footer from "@/components/footer";
 
 const YEARLY_SUBCATEGORIES: YearlySubCategory[] = ["GST", "Property Tax", "Water Tax", "Other"];
 
@@ -513,6 +514,7 @@ export default function YearlyExpensesPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      <Footer />
     </AppShell>
   );
 }
