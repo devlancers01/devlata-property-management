@@ -14,19 +14,25 @@ export default withAuth(
     // Admin routes - require specific permissions
     if (path.startsWith("/admin/users")) {
       if (!token.permissions?.includes("users.view")) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+        return NextResponse.redirect(new URL("/customers", req.url));
       }
     }
 
     if (path.startsWith("/admin/roles")) {
       if (!token.permissions?.includes("roles.view")) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+        return NextResponse.redirect(new URL("/customers", req.url));
       }
     }
 
     if (path.startsWith("/admin/staff")) {
       if (!token.permissions?.includes("staff.view")) {
-        return NextResponse.redirect(new URL("/dashboard", req.url));
+        return NextResponse.redirect(new URL("/customers", req.url));
+      }
+    }
+
+    if (path.startsWith("/dashboard")) {
+      if (!token.permissions?.includes("sales.view")) {
+        return NextResponse.redirect(new URL("/customers", req.url));
       }
     }
 

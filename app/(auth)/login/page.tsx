@@ -95,7 +95,7 @@ export default function LoginPage() {
         idToken: firebaseIdToken,
         otpVerified: "true",
         redirect: true,
-        callbackUrl: "/dashboard"
+        callbackUrl: "/customers"
       });
 
       if (result?.error) {
