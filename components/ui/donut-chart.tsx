@@ -4,6 +4,11 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 
 interface DonutChartProps {
   data: Array<{ name: string; value: number }>
+  category: string
+  index: string
+  className?: string
+  showAnimation?: boolean
+  showLabel?: boolean
   valueFormatter?: (value: number) => string
   colors?: string[]
 }
