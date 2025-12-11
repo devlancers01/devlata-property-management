@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, Search, Eye, Loader2, Calendar, X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CustomerModel } from "@/models/customer.model";
 import Footer from "@/components/footer";
+import { useSession } from "next-auth/react";
 
 // Helper to safely convert to Date in IST
 function toDate(value: any): Date {
@@ -74,6 +75,8 @@ export default function CustomersPage() {
   const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
+
+  const { data: session } = useSession();
 
   // Set default filter to show bookings from today onwards
   useEffect(() => {
@@ -211,14 +214,14 @@ export default function CustomersPage() {
               Manage guest information and reservations
             </p>
           </div>
-          <Button 
+          {session?.user?.permissions?.includes("customers.create") && session?.user?.permissions?.includes("bookings.create") && <Button 
             onClick={() => router.push("/customers/new")} 
             size="lg"
             className="cursor-pointer"
           >
             <Plus className="w-5 h-5 mr-2" />
             New Booking
-          </Button>
+          </Button>}
         </div>
 
         {/* Filters */}
@@ -379,7 +382,13 @@ export default function CustomersPage() {
                 <Card
                   key={customer.uid}
                   className="hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => router.push(`/customers/${customer.uid}`)}
+                  onClick={
+                    () => {
+                      if (session?.user.permissions?.includes("customers.edit") && session?.user.permissions?.includes("bookings.edit")) {
+                        router.push(`/customers/${customer.uid}`);
+                      }
+                    }
+                  }
                 >
                   <CardContent className="p-4 md:p-6">
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -432,7 +441,7 @@ export default function CustomersPage() {
                         </div>
                       </div>
 
-                      <Button
+                      {session?.user.permissions?.includes("customers.edit") && session?.user.permissions?.includes("bookings.edit") && <Button
                         size="sm"
                         variant="outline"
                         onClick={(e) => {
@@ -443,7 +452,7 @@ export default function CustomersPage() {
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View Details
-                      </Button>
+                      </Button>}
                     </div>
                   </CardContent>
                 </Card>

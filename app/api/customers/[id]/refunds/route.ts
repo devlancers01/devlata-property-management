@@ -16,6 +16,11 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check permission
+    if (!session.user.permissions?.includes("customers.view") || !session.user.permissions?.includes("customers.refunds.view")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id } = await params;
     const refunds = await getRefunds(id);
 
@@ -40,8 +45,7 @@ export async function POST(
     }
 
     // Check permission
-    if (!session.user.permissions?.includes("bookings.delete") && 
-        !session.user.permissions?.includes("bookings.edit")) {
+    if (!session.user.permissions?.includes("customers.create") || !session.user.permissions?.includes("customers.refunds.create")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

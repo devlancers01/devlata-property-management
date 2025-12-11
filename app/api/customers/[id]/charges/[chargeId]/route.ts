@@ -28,6 +28,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check permission
+    if (!session.user.permissions?.includes("customers.edit") && !session.user.permissions?.includes("customers.extras.edit")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id, chargeId } = await params;
     const body = await req.json();
 
@@ -143,6 +148,11 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check permission
+    if (!session.user.permissions?.includes("customers.delete") && !session.user.permissions?.includes("customers.extras.delete")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { id, chargeId } = await params;

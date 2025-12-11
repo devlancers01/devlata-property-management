@@ -6,13 +6,28 @@ export type Permission =
   | "customers.create"
   | "customers.edit"
   | "customers.delete"
+  | "customers.members.view"
+  | "customers.members.create"
+  | "customers.members.edit"
+  | "customers.members.delete"
+  | "customers.payments.view"
+  | "customers.payments.create"
+  | "customers.payments.edit"
+  | "customers.payments.delete"
+  | "customers.extras.view"
+  | "customers.extras.create"
+  | "customers.extras.edit"
+  | "customers.extras.delete"
+  | "customers.refunds.view"
+  | "customers.refunds.create"
+  | "customers.refunds.edit"
+  | "customers.refunds.delete"
   | "bookings.view"
   | "bookings.create"
   | "bookings.edit"
   | "bookings.delete"
   | "payments.view"
   | "payments.create"
-  | "sales.view"
   | "expenses.view"
   | "expenses.create"
   | "expenses.edit"
@@ -44,19 +59,21 @@ export type Permission =
   | "staff.expenses.create"
   | "staff.expenses.edit"
   | "staff.expenses.delete"
-  | "staff.documents.create"
-  | "staff.documents.edit"
-  | "staff.documents.delete"
   | "sales.create"
   | "sales.edit"
   | "sales.delete"
-  | "sales.view";
+  | "sales.view"
+  | "leads.view"
+  | "leads.create"
+  | "leads.edit"
+  | "leads.delete"
+  ;
 
     
   export interface PermissionMeta {
   key: Permission;
   displayName: string;
-  category: "customers" | "bookings" | "payments" | "sales" | "expenses" | "staff" | "settings" | "users" | "roles";
+  category: "customers" | "bookings" | "payments" | "sales" | "expenses" | "staff" | "settings" | "users" | "roles" | "leads";
   description: string;
 }
 
@@ -66,6 +83,26 @@ export const ALL_PERMISSIONS: PermissionMeta[] = [
   { key: "customers.create", displayName: "Create Customers", category: "customers", description: "Create new customer bookings" },
   { key: "customers.edit", displayName: "Edit Customers", category: "customers", description: "Edit customer information" },
   { key: "customers.delete", displayName: "Delete Customers", category: "customers", description: "Delete customer records" },
+
+  {key: "customers.members.view", displayName: "View Customer Members", category: "customers", description: "View members associated with customers" },
+  {key: "customers.members.create", displayName: "Create Customer Members", category: "customers", description: "Create new members for customers" },
+  {key: "customers.members.edit", displayName: "Edit Customer Members", category: "customers", description: "Edit members associated with customers" },
+  {key: "customers.members.delete", displayName: "Delete Customer Members", category: "customers", description: "Delete members associated with customers" },
+
+  {key: "customers.payments.view", displayName: "View Customer Payments", category: "customers", description: "View payments made by customers" },
+  {key: "customers.payments.create", displayName: "Create Customer Payments", category: "customers", description: "Record new payments from customers" },
+  {key: "customers.payments.edit", displayName: "Edit Customer Payments", category: "customers", description: "Edit payment records of customers" },
+  {key: "customers.payments.delete", displayName: "Delete Customer Payments", category: "customers", description: "Delete payment records of customers" },
+
+  {key: "customers.extras.view", displayName: "View Customer Extras", category: "customers", description: "View extra charges for customers" },
+  {key: "customers.extras.create", displayName: "Create Customer Extras", category: "customers", description: "Add extra charges for customers" },
+  {key: "customers.extras.edit", displayName: "Edit Customer Extras", category: "customers", description: "Edit extra charges for customers" },
+  {key: "customers.extras.delete", displayName: "Delete Customer Extras", category: "customers", description: "Delete extra charges for customers" },
+
+  {key: "customers.refunds.view", displayName: "View Customer Refunds", category: "customers", description: "View refunds for customers" },
+  {key: "customers.refunds.create", displayName: "Create Customer Refunds", category: "customers", description: "Process refunds for customers" },
+  {key: "customers.refunds.edit", displayName: "Edit Customer Refunds", category: "customers", description: "Edit refund records for customers" },
+  {key: "customers.refunds.delete", displayName: "Delete Customer Refunds", category: "customers", description: "Delete refund records for customers" },
 
   { key: "sales.view", displayName: "View Sales", category: "sales", description: "View sales records" },
   { key: "sales.create", displayName: "Create Sales", category: "sales", description: "Add new sales records" },
@@ -103,6 +140,12 @@ export const ALL_PERMISSIONS: PermissionMeta[] = [
     category: "users",
     description: "Remove users from the system",
   },
+
+
+  {key: "leads.view", displayName: "View Leads", category: "leads", description: "View lead list and details" },
+  {key: "leads.create", displayName: "Create Leads", category: "leads", description: "Add new leads to the system" },
+  {key: "leads.edit", displayName: "Edit Leads", category: "leads", description: "Modify lead information" },
+  {key: "leads.delete", displayName: "Delete Leads", category: "leads", description: "Remove leads from the system" },
 
   // Roles Management
   {
@@ -247,6 +290,7 @@ export const ALL_PERMISSIONS: PermissionMeta[] = [
     category: "staff",
     description: "Remove uploaded documents",
   },
+  {    key: "staff.documents.edit", displayName: "Edit Staff Documents", category: "staff", description: "Modify staff document details"  }
 
   
 ];

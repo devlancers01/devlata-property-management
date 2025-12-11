@@ -17,6 +17,7 @@ import { getCurrentFinancialYear, getFinancialYearOptions, getFinancialYearEndDa
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase/config";
 import Footer from "@/components/footer";
+import { useSession } from "next-auth/react";
 
 const YEARLY_SUBCATEGORIES: YearlySubCategory[] = ["GST", "Property Tax", "Water Tax", "Other"];
 
@@ -51,6 +52,7 @@ export default function YearlyExpensesPage() {
   const [receiptPreviews, setReceiptPreviews] = useState<string[]>([]);
 
   const financialYearOptions = getFinancialYearOptions();
+  const { data: session } = useSession();
 
   useEffect(() => {
     fetchExpenses();
@@ -241,10 +243,10 @@ export default function YearlyExpensesPage() {
             <h1 className="text-2xl md:text-3xl font-bold">Yearly Expenses</h1>
             <p className="text-muted-foreground mt-1">Track annual fixed expenses</p>
           </div>
-          <Button onClick={() => openDialog()}>
+          {session?.user?.permissions.includes("expenses.create") && <Button onClick={() => openDialog()}>
             <Plus className="w-4 h-4 mr-2" />
             Add Expense
-          </Button>
+          </Button>}
         </div>
 
         <Card className="bg-primary text-primary-foreground">
@@ -322,10 +324,10 @@ export default function YearlyExpensesPage() {
                     </td>
                     <td className="p-3">
                       <div className="flex gap-2 justify-center">
-                        <Button variant="ghost" size="sm" onClick={() => openDialog(expense)}>
+                        { session?.user?.permissions.includes("expenses.edit") && <Button variant="ghost" size="sm" onClick={() => openDialog(expense)}>
                           <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
+                        </Button>}
+                        { session?.user?.permissions.includes("expenses.delete") && <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => {
@@ -334,7 +336,7 @@ export default function YearlyExpensesPage() {
                           }}
                         >
                           <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
+                        </Button>}
                       </div>
                     </td>
                   </tr>
