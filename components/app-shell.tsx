@@ -13,10 +13,10 @@ import { LogOut } from "lucide-react";
 import { permission } from "process"
 
 const navigation = [
-  { name: "Customer Entry", href: "/customers", icon: Users },
-  { name: "Monthly Expenses", href: "/monthly-expenses", icon: Wallet },
-  { name: "Yearly Expenses", href: "/yearly-expenses", icon: TrendingUp },
-  { name: "Booking Calendar", href: "/bookings", icon: Calendar },
+  { name: "Customer Entry", href: "/customers", icon: Users, permission: "customers.view" },
+  { name: "Monthly Expenses", href: "/monthly-expenses", icon: Wallet, permission: "expenses.view" },
+  { name: "Yearly Expenses", href: "/yearly-expenses", icon: TrendingUp, permission: "expenses.view" },
+  { name: "Booking Calendar", href: "/bookings", icon: Calendar, permission: "bookings.view" },
   // { name: "Settings", href: "/settings", icon: Settings },
 ]
 
@@ -58,19 +58,21 @@ export function AppShell({ children }: { children: ReactNode }) {
           {navigation.map((item) => {
             const isActive = pathname === item.href
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                {item.name}
-              </Link>
+              <>
+                {session?.user?.permissions?.includes(item.permission) && <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  )}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.name}
+                </Link>}
+              </>
             )
           })}
 
@@ -126,25 +128,25 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="font-bold">Property Manager</span>
           </div>
           <div className="p-4 border-t mt-auto">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  signOut({ callbackUrl: "/login" });
-                }}
-              >
-                <LogOut className="w-5 h-5 mr-3" />
-                Logout
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                signOut({ callbackUrl: "/login" });
+              }}
+            >
+              <LogOut className="w-5 h-5 mr-3" />
+              Logout
+            </Button>
+          </div>
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Menu className="w-5 h-5" />
               </Button>
             </SheetTrigger>
-            
+
             <SheetContent side="left" className="w-64 p-0">
               <div className="p-6 border-b">
                 <div className="flex items-center gap-3">
@@ -179,7 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 })}
               </nav>
             </SheetContent>
-            
+
           </Sheet>
         </header>
 

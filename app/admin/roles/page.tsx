@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Shield, MoreVertical, Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
+import Footer from "@/components/footer";
 
 interface Role {
   uid: string;
@@ -233,14 +234,14 @@ export default function RolesPage() {
                     </div>
                   )}
 
-                  <Button
+                  {session?.user?.permissions?.includes("roles.edit") && <Button
                     variant="outline"
                     size="sm"
                     className="w-full mt-2 "
                     onClick={() => router.push(`/admin/roles/${role.uid}`)}
                   >
                     View Details
-                  </Button>
+                  </Button>}
                 </CardContent>
               </Card>
             ))}
@@ -278,6 +279,7 @@ export default function RolesPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      <Footer/>
     </AppShell>
   );
 }

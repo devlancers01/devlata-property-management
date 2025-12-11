@@ -19,6 +19,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ArrowLeft, Loader2, Save, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import Footer from "@/components/footer";
 
 interface User {
   uid: string;
@@ -499,6 +500,7 @@ export default function EditUserPage() {
           </div>
         </form>
       </div>
+      <Footer />
     </AppShell>
   );
 }

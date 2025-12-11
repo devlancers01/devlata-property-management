@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Search, MoreVertical, Loader2, UserCog, Shield } from "lucide-react";
 import { toast } from "sonner";
+import Footer from "@/components/footer";
 
 interface User {
   uid: string;
@@ -190,13 +191,13 @@ export default function UsersPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button
+            {session?.user?.permissions?.includes("roles.view") && <Button
               variant="outline"
               onClick={() => router.push("/admin/roles")}
             >
               <Shield className="w-4 h-4 mr-2" />
               Roles & Permissions
-            </Button>
+            </Button>}
             {session?.user?.permissions?.includes("users.create") && (
               <Button onClick={() => router.push("/admin/users/new")}>
                 <Plus className="w-4 h-4 mr-2" />
@@ -315,16 +316,18 @@ export default function UsersPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => router.push(`/admin/users/${user.uid}`)}
+                          { session?.user?.permissions?.includes("users.edit") && <DropdownMenuItem
+                            onClick={() => {
+                              router.push(`/admin/users/${user.uid}`)
+                            }}
                           >
                             Edit User
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
+                          </DropdownMenuItem>}
+                          { session?.user?.permissions?.includes("users.edit") && <DropdownMenuItem
                             onClick={() => handleToggleStatus(user)}
                           >
                             {user.active ? "Deactivate" : "Activate"}
-                          </DropdownMenuItem>
+                          </DropdownMenuItem>}
                           {session?.user?.permissions?.includes("users.delete") &&
                             user.uid !== session?.user?.id && (
                               <>
@@ -380,6 +383,7 @@ export default function UsersPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      <Footer />
     </AppShell>
   );
 }

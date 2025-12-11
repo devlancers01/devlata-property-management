@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, Edit, Trash2, Loader2, Plus, Download, Upload, X, DollarSign, Receipt, FileText, User, Save } from "lucide-react";
 import { toast } from "sonner";
 import type { StaffModel, StaffPayment, StaffExpense, StaffDocument } from "@/models/staff.model";
+import Footer from "@/components/footer";
 
 function toDate(value: any): Date {
   if (value instanceof Date) return value;
@@ -1205,6 +1206,7 @@ export default function StaffDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      <Footer />
     </AppShell>
   );
 }

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import Footer from "@/components/footer";
 
 interface Role {
   uid: string;
@@ -276,6 +277,7 @@ export default function NewUserPage() {
           </div>
         </form>
       </div>
+      <Footer />
     </AppShell>
   );
 }
