@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import type { Booking } from "@/models/booking.model";
 import type { CustomerModel } from "@/models/customer.model";
 import Footer from "@/components/footer";
+import { useSession } from "next-auth/react";
 
 export default function BookingsPage() {
   const router = useRouter();
@@ -32,6 +33,8 @@ export default function BookingsPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dateBookings, setDateBookings] = useState<Array<Booking & { customer?: CustomerModel }>>([]);
   const [loadingDateDetails, setLoadingDateDetails] = useState(false);
+
+  const {data: session} = useSession();
 
   useEffect(() => {
     fetchBookings();
@@ -219,10 +222,10 @@ export default function BookingsPage() {
             <h1 className="text-2xl md:text-3xl font-bold">Booking Calendar</h1>
             <p className="text-muted-foreground mt-1">View and manage reservations</p>
           </div>
-          <Button onClick={() => setBlockDialogOpen(true)}>
+          {session?.user?.permissions.includes("bookings.create") && <Button onClick={() => setBlockDialogOpen(true)}>
             <Ban className="w-4 h-4 mr-2" />
             Block Dates
-          </Button>
+          </Button>}
         </div>
 
         {/* Legend */}
@@ -433,13 +436,13 @@ export default function BookingsPage() {
                               <Ban className="w-3 h-3" />
                               Blocked Dates
                             </Badge>
-                            <Button
+                            {session?.user?.permissions.includes("bookings.delete") && <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleUnblock(booking)}
                             >
                               Unblock
-                            </Button>
+                            </Button>}
                           </div>
                           <div className="text-sm space-y-1">
                             <div>

@@ -737,7 +737,7 @@ export default function CustomerDetailPage() {
           <div className="flex gap-2 flex-wrap">
             <Badge className={getStatusColor(customer.status)}>{customer.status}</Badge>
             {customer.status === "active" &&
-              session?.user?.permissions?.some((p: string) => ["bookings.delete", "bookings.edit"].includes(p)) && (
+              session?.user?.permissions?.includes("bookings.edit") && session?.user?.permissions?.includes("customers.edit") && session?.user?.permissions?.includes("bookings.delete") && (
                 <Button
                   variant="destructive"
                   size="sm"
@@ -871,7 +871,7 @@ export default function CustomerDetailPage() {
 
         {/* Main Content */}
         <Tabs defaultValue="details" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+          <TabsList className="grid w-full space-x-2 space-y-2 lg:grid-cols-4 grid-cols-3 lg:w-auto">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="members">Members ({groupMembers.length})</TabsTrigger>
             <TabsTrigger value="payments">Payments ({payments.length})</TabsTrigger>
@@ -880,14 +880,14 @@ export default function CustomerDetailPage() {
           </TabsList>
 
           {/* Details Tab */}
-          <TabsContent value="details" className="space-y-6">
+          <TabsContent value="details" className="space-y-6 mt-12">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Personal Information */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">Personal Information</CardTitle>
-                    {!editingPersonal ? (
+                    {session?.user?.permissions?.includes("customers.edit") && !editingPersonal ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1155,7 +1155,7 @@ export default function CustomerDetailPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">Booking Information</CardTitle>
-                    {!editingBooking ? (
+                    {session?.user?.permissions?.includes("customers.edit") && session?.user?.permissions?.includes("bookings.edit") && !editingBooking ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1426,13 +1426,13 @@ export default function CustomerDetailPage() {
           </TabsContent>
 
           {/* Members Tab */}
-          <TabsContent value="members" className="space-y-4">
+          <TabsContent value="members" className="space-y-6 mt-12">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Group Members</h3>
-              <Button onClick={() => openMemberDialog()}>
+              {session?.user?.permissions?.includes("customers.members.create") && <Button onClick={() => openMemberDialog()}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Member
-              </Button>
+              </Button>}
             </div>
 
             {groupMembers.length === 0 ? (
@@ -1450,20 +1450,20 @@ export default function CustomerDetailPage() {
                       <div className="flex items-start justify-between mb-3">
                         <h4 className="font-semibold">{member.name}</h4>
                         <div className="flex gap-1">
-                          <Button
+                          {session?.user?.permissions?.includes("customers.members.edit") && <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => openMemberDialog(member)}
                           >
                             <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
+                          </Button>}
+                          {session?.user?.permissions?.includes("customers.members.delete") && <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => confirmDelete("member", member.uid)}
                           >
                             <Trash2 className="w-4 h-4 text-red-600" />
-                          </Button>
+                          </Button>}
                         </div>
                       </div>
                       <div className="text-sm space-y-1">
@@ -1500,13 +1500,13 @@ export default function CustomerDetailPage() {
           </TabsContent>
 
           {/* Payments Tab */}
-          <TabsContent value="payments" className="space-y-4">
+          <TabsContent value="payments" className="space-y-6 mt-12">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Payment History</h3>
-              <Button onClick={() => openPaymentDialog()}>
+              {session?.user?.permissions?.includes("customers.payments.create") && <Button onClick={() => openPaymentDialog()}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Payment
-              </Button>
+              </Button>}
             </div>
 
             {payments.length === 0 ? (
@@ -1554,20 +1554,20 @@ export default function CustomerDetailPage() {
                           )}
                         </div>
                         <div className="flex gap-1">
-                          <Button
+                          {session?.user?.permissions?.includes("customers.payments.edit") && <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => openPaymentDialog(payment)}
                           >
                             <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
+                          </Button>}
+                          {session?.user?.permissions?.includes("customers.payments.delete") && <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => confirmDelete("payment", payment.uid)}
                           >
                             <Trash2 className="w-4 h-4 text-red-600" />
-                          </Button>
+                          </Button>}
                         </div>
                       </div>
                     </CardContent>
@@ -1578,13 +1578,13 @@ export default function CustomerDetailPage() {
           </TabsContent>
 
           {/* Extra Charges Tab */}
-          <TabsContent value="charges" className="space-y-4">
+          <TabsContent value="charges" className="space-y-6 mt-12">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Extra Charges</h3>
-              <Button onClick={() => openChargeDialog()}>
+              {session?.user?.permissions?.includes("customers.extras.create") && <Button onClick={() => openChargeDialog()}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Charge
-              </Button>
+              </Button>}
             </div>
 
             {extraCharges.length === 0 ? (
@@ -1615,20 +1615,20 @@ export default function CustomerDetailPage() {
                             ₹{charge.amount.toLocaleString()}
                           </span>
                           <div className="flex gap-1">
-                            <Button
+                            {session?.user?.permissions?.includes("customers.extras.edit") && <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => openChargeDialog(charge)}
                             >
                               <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
+                            </Button>}
+                            {session?.user?.permissions?.includes("customers.extras.delete") && <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => confirmDelete("charge", charge.uid)}
                             >
                               <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
+                            </Button>}
                           </div>
                         </div>
                       </div>
@@ -1640,7 +1640,7 @@ export default function CustomerDetailPage() {
           </TabsContent>
 
           {/* Refunds Tab */}
-          <TabsContent value="refunds" className="space-y-4">
+          <TabsContent value="refunds" className="space-y-6 mt-12">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Refund History</h3>
             </div>
@@ -1848,53 +1848,53 @@ export default function CustomerDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
                 <div className="space-y-2">
-  <Label>Amount (₹) *</Label>
-  <Input
-    type="number"
-    value={paymentForm.amount || ""}
-    onChange={(e) =>
-      setPaymentForm({ ...paymentForm, amount: e.target.value })
-    }
-  />
-</div>
+                  <Label>Amount (₹) *</Label>
+                  <Input
+                    type="number"
+                    value={paymentForm.amount || ""}
+                    onChange={(e) =>
+                      setPaymentForm({ ...paymentForm, amount: e.target.value })
+                    }
+                  />
+                </div>
 
-<div className="space-y-2">
-  <Label>Payment Mode *</Label>
-  <Select
-    value={paymentForm.mode}
-    onValueChange={(value) =>
-      setPaymentForm({ ...paymentForm, mode: value })
-    }
-  >
-    <SelectTrigger>
-      <SelectValue />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="cash">Cash</SelectItem>
-      <SelectItem value="UPI">UPI</SelectItem>
-      <SelectItem value="bank">Bank Transfer</SelectItem>
-    </SelectContent>
-  </Select>
-</div>
+                <div className="space-y-2">
+                  <Label>Payment Mode *</Label>
+                  <Select
+                    value={paymentForm.mode}
+                    onValueChange={(value) =>
+                      setPaymentForm({ ...paymentForm, mode: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="UPI">UPI</SelectItem>
+                      <SelectItem value="bank">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-<div className="space-y-2">
-  <Label>Type *</Label>
-  <Select
-    value={paymentForm.type}
-    onValueChange={(value) =>
-      setPaymentForm({ ...paymentForm, type: value as "advance" | "final" | "part" })
-    }
-  >
-    <SelectTrigger>
-      <SelectValue placeholder="Select type" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="advance">Advance</SelectItem>
-      <SelectItem value="final">Final</SelectItem>
-      <SelectItem value="part">Part</SelectItem>
-    </SelectContent>
-  </Select>
-</div>
+                <div className="space-y-2">
+                  <Label>Type *</Label>
+                  <Select
+                    value={paymentForm.type}
+                    onValueChange={(value) =>
+                      setPaymentForm({ ...paymentForm, type: value as "advance" | "final" | "part" })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="advance">Advance</SelectItem>
+                      <SelectItem value="final">Final</SelectItem>
+                      <SelectItem value="part">Part</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
               </div>
 

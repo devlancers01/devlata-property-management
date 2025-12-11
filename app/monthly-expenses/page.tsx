@@ -16,6 +16,7 @@ import type { ExpenseModel, MonthlyExpenseCategory } from "@/models/expense.mode
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase/config";
 import Footer from "@/components/footer";
+import { useSession } from "next-auth/react";
 
 const MONTHLY_CATEGORIES: MonthlyExpenseCategory[] = ["food", "miscellaneous", "service", "maintenance", "staff"];
 const MODES = ["cash", "upi", "card", "other"];
@@ -40,6 +41,8 @@ export default function MonthlyExpensesPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  const { data: session } = useSession();
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -248,10 +251,10 @@ export default function MonthlyExpensesPage() {
             <h1 className="text-2xl md:text-3xl font-bold">Monthly Expenses</h1>
             <p className="text-muted-foreground mt-1">Track daily operational expenses</p>
           </div>
-          <Button onClick={() => openDialog()}>
+          {session?.user?.permissions.includes("expenses.create") && <Button onClick={() => openDialog()}>
             <Plus className="w-4 h-4 mr-2" />
             Add Expense
-          </Button>
+          </Button>}
         </div>
 
         <Card className="bg-primary text-primary-foreground">
@@ -338,31 +341,31 @@ export default function MonthlyExpensesPage() {
                     <td className="p-3 capitalize">{expense.mode || "-"}</td>
                     <td className="p-3 text-right font-semibold">₹{expense.amount.toLocaleString()}</td>
                     <td className="p-3 text-center">
-  {expense.receiptUrls && expense.receiptUrls.length > 0 ? (
-    <div className="flex flex-col flex-wrap gap-2 justify-center">
-      {expense.receiptUrls.map((url, index) => (
-        <a
-          key={index}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 underline text-sm"
-        >
-          Receipt {index + 1}
-        </a>
-      ))}
-    </div>
-  ) : (
-    <span className="text-sm text-muted-foreground">-</span>
-  )}
-</td>
+                      {expense.receiptUrls && expense.receiptUrls.length > 0 ? (
+                        <div className="flex flex-col flex-wrap gap-2 justify-center">
+                          {expense.receiptUrls.map((url, index) => (
+                            <a
+                              key={index}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 underline text-sm"
+                            >
+                              Receipt {index + 1}
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                    </td>
 
                     <td className="p-3">
                       <div className="flex gap-2 justify-center">
-                        <Button variant="ghost" size="sm" onClick={() => openDialog(expense)}>
+                        {session?.user?.permissions?.includes("expenses.edit") && <Button variant="ghost" size="sm" onClick={() => openDialog(expense)}>
                           <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
+                        </Button>}
+                        { session?.user?.permissions?.includes("expenses.delete") && <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => {
@@ -371,7 +374,7 @@ export default function MonthlyExpensesPage() {
                           }}
                         >
                           <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
+                        </Button>}
                       </div>
                     </td>
                   </tr>
@@ -435,7 +438,7 @@ export default function MonthlyExpensesPage() {
                     <Select
                       value={formData.mode}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, mode:value as string } )
+                        setFormData({ ...formData, mode: value as string })
                       }
                     >
                       <SelectTrigger>
