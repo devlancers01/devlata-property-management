@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ArrowLeft, Loader2, Save, Shield, Lock } from "lucide-react";
 import { toast } from "sonner";
+import Footer from "@/components/footer";
 
 interface PermissionMeta {
   key: string;
@@ -397,6 +398,7 @@ export default function RoleFormPage() {
           </div>
         </form>
       </div>
+      <Footer/>
     </AppShell>
   );
 }

@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Only admins can view analytics
-    if (session.user.role !== "admin") {
+    if (!session.user.permissions?.includes("sales.view") || !session.user.permissions?.includes("expenses.view") || !session.user.permissions?.includes("bookings.view") || !session.user.permissions?.includes("staff.view") || !session.user.permissions?.includes("customers.view")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

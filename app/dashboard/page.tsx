@@ -143,7 +143,7 @@ interface QuickStat {
 type PeriodType = "today" | "week" | "month" | "year" | "fy" | "custom"
 
 export default function DashboardPage() {
-  const { data: session } = useSession()
+  const { data: session } = useSession();
 
   // State
   const [loading, setLoading] = useState(true)
@@ -756,10 +756,10 @@ export default function DashboardPage() {
                   </SelectContent>
                 </Select>
 
-                <Button onClick={openCreateDialog} className="gap-2">
+                {session?.user?.permissions.includes("sales.create") && <Button onClick={openCreateDialog} className="gap-2">
                   <Plus className="w-4 h-4" />
                   Add Sale
-                </Button>
+                </Button>}
               </div>
             </div>
           </div>
@@ -1069,20 +1069,20 @@ export default function DashboardPage() {
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center justify-end gap-2">
-                              <Button
+                              {session?.user?.permissions.includes("sales.edit") && <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openEditDialog(sale)}
                               >
                                 <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
+                              </Button>}
+                              { session?.user?.permissions.includes("sales.delete") &&<Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteSale(sale.uid)}
                               >
                                 <Trash2 className="w-4 h-4" />
-                              </Button>
+                              </Button>}
                             </div>
                           </td>
                         </tr>

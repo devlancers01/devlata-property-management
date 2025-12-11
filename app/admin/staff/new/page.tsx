@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import type { StaffDesignation, StaffStatus, IDProofType } from "@/models/staff.model";
+import Footer from "@/components/footer";
 
 interface StaffFormState {
   name: string;
@@ -428,6 +429,7 @@ export default function NewStaffPage() {
           </Card>
         </form>
       </div>
+      <Footer />
     </AppShell>
   );
 }

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Eye, Loader2, Users } from "lucide-react";
 import type { StaffModel, STAFF_DESIGNATIONS } from "@/models/staff.model";
+import Footer from "@/components/footer";
 
 function toDate(value: any): Date {
   if (value instanceof Date) return value;
@@ -227,7 +228,7 @@ export default function StaffPage() {
                       </div>
                     </div>
 
-                    {session?.user?.permissions?.includes("staff.view") && (
+                    {session?.user?.permissions?.includes("staff.edit") && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -247,6 +248,7 @@ export default function StaffPage() {
           </div>
         )}
       </div>
+      <Footer />
     </AppShell>
   );
 }
