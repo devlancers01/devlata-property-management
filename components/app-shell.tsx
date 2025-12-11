@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {navigation.map((item) => {
             const isActive = pathname === item.href
             return (
-              <>
+              <div>
                 {session?.user?.permissions?.includes(item.permission) && <Link
                   key={item.name}
                   href={item.href}
@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <item.icon className="w-5 h-5" />
                   {item.name}
                 </Link>}
-              </>
+              </div>
             )
           })}
 
