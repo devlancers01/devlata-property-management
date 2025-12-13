@@ -78,11 +78,13 @@ export async function getCustomerById(uid: string): Promise<CustomerModel | null
   } as CustomerModel;
 }
 
+// Service: services/customer.service.ts (or wherever getAllCustomers is)
 export async function getAllCustomers(filters?: {
   status?: string;
   startDate?: string;
   endDate?: string;
   searchQuery?: string;
+  includeOngoing?: boolean;
 }): Promise<CustomerModel[]> {
   let query = adminDb.collection("customers").orderBy("checkIn", "desc");
 
@@ -104,7 +106,7 @@ export async function getAllCustomers(filters?: {
     } as CustomerModel;
   });
 
-  // Client-side filtering for search and date range
+  // Client-side filtering for search
   if (filters?.searchQuery) {
     const query = filters.searchQuery.toLowerCase();
     customers = customers.filter(
@@ -115,11 +117,31 @@ export async function getAllCustomers(filters?: {
     );
   }
 
+  // Date range filtering with ongoing booking support
   if (filters?.startDate || filters?.endDate) {
+    const start = filters.startDate ? new Date(filters.startDate + "T00:00:00") : null;
+    const end = filters.endDate ? new Date(filters.endDate + "T23:59:59") : null;
+
     customers = customers.filter((c) => {
       const checkIn = toDate(c.checkIn);
-      if (filters.startDate && checkIn < new Date(filters.startDate)) return false;
-      if (filters.endDate && checkIn > new Date(filters.endDate)) return false;
+      const checkOut = toDate(c.checkOut);
+
+      if (filters.includeOngoing && start && !end) {
+        // Show bookings where:
+        // 1. Check-in is >= start date OR
+        // 2. Booking is ongoing (check-in < start AND check-out >= start)
+        return checkIn >= start || (checkIn < start && checkOut >= start);
+      }
+
+      if (filters.includeOngoing && start && end) {
+        // Show bookings that overlap with the date range
+        // Booking overlaps if: checkIn <= endDate AND checkOut >= startDate
+        return checkIn <= end && checkOut >= start;
+      }
+
+      // Original logic without ongoing support
+      if (start && checkIn < start) return false;
+      if (end && checkIn > end) return false;
       return true;
     });
   }

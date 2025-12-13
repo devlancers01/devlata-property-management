@@ -7,6 +7,8 @@ export const MONTHLY_EXPENSE_CATEGORIES = [
   "service",
   "maintenance",
   "staff",
+  "refund",
+  "other",
 ] as const;
 
 export const YEARLY_EXPENSE_CATEGORIES = ["yearly"] as const;

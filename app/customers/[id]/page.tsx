@@ -31,6 +31,7 @@ import {
   Mail,
   MapPin,
   Car,
+  Check,
   CreditCard,
   Users,
   Plus,
@@ -133,6 +134,7 @@ export default function CustomerDetailPage() {
 
   // Conflict warning
   const [conflictWarning, setConflictWarning] = useState<string>("");
+  const [markingComplete, setMarkingComplete] = useState<boolean>(false);
 
   useEffect(() => {
     fetchCustomerDetails();
@@ -268,6 +270,45 @@ export default function CustomerDetailPage() {
       reader.readAsDataURL(file);
     } else {
       setPreview("");
+    }
+  };
+
+  const handleMarkComplete = async (action: "complete" | "undo") => {
+    // Add null check at the beginning
+    if (!customer) {
+      toast.error("Customer data not loaded");
+      return;
+    }
+
+    if (action === "complete" && customer.balanceAmount > 0) {
+      toast.error(`Cannot mark as completed. Pending dues: ₹${customer.balanceAmount.toLocaleString()}`);
+      return;
+    }
+
+    setMarkingComplete(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/mark-completed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update status");
+      }
+
+      const message = action === "complete"
+        ? "Booking marked as completed!"
+        : "Booking status reverted to active";
+
+      toast.success(message);
+      fetchCustomerDetails();
+    } catch (error: any) {
+      console.error("Error updating status:", error);
+      toast.error(error.message || "Failed to update status");
+    } finally {
+      setMarkingComplete(false);
     }
   };
 
@@ -736,8 +777,35 @@ export default function CustomerDetailPage() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <Badge className={getStatusColor(customer.status)}>{customer.status}</Badge>
+            {/* Mark as Completed Button - Only show for active/completed bookings */}
+            {customer.status !== "cancelled" &&
+              session?.user?.permissions?.includes("customers.edit") && (
+                <Button
+                  variant={customer.status === "completed" ? "outline" : "default"}
+                  size="sm"
+                  onClick={() => handleMarkComplete(customer.status === "completed" ? "undo" : "complete")}
+                  disabled={markingComplete}
+                >
+                  {markingComplete ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : customer.status === "completed" ? (
+                    <>
+                      <X className="w-4 h-4 mr-2" />
+                      Undo Complete
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 mr-2" />
+                      Mark as Completed
+                    </>
+                  )}
+                </Button>
+              )}
             {customer.status === "active" &&
-              session?.user?.permissions?.includes("bookings.edit") && session?.user?.permissions?.includes("customers.edit") && session?.user?.permissions?.includes("bookings.delete") && (
+              session?.user?.permissions?.includes("bookings.edit") && session?.user?.permissions?.includes("customers.edit") && session?.user?.permissions?.includes("bookings.delete") && session?.user?.permissions?.includes("customers.delete") && (
                 <Button
                   variant="destructive"
                   size="sm"

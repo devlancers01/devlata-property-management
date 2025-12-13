@@ -5,6 +5,7 @@ import { getRefunds, addRefund } from "@/lib/firebase/customers";
 import { sendCancellationEmail } from "@/lib/email/user-emails";
 import { getCustomerById } from "@/lib/firebase/customers";
 import { deleteBookings } from "@/lib/firebase/bookings";
+import { createExpense } from "@/lib/firebase/expenses"; // ← Add this import
 
 export async function GET(
   req: NextRequest,
@@ -90,6 +91,25 @@ export async function POST(
 
     const refundUid = await addRefund(id, refundData);
     await deleteBookings(customer.checkIn, customer.checkOut);
+
+    // ✅ Create expense entry for refund
+    try {
+      await createExpense({
+        date: new Date(), // Current date in IST
+        amount: amount,
+        category: "refund",
+        mode: method || "cash",
+        description: `Refund to ${customer.name}${reason ? ` - ${reason}` : ""}`,
+        receiptUrls: receiptUrl ? [receiptUrl] : [],
+        sourceType: "customer",
+        sourceId: refundUid,
+        customerId: id,
+        createdBy: session.user.email || "system",
+      });
+    } catch (expenseError) {
+      console.error("Error creating refund expense entry:", expenseError);
+      // Don't fail the refund if expense creation fails
+    }
 
     // Send cancellation email
     try {

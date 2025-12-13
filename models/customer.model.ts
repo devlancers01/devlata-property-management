@@ -35,6 +35,7 @@ export interface CustomerModel {
   refundAmount?: number;
   cancelledAt?: Date | Timestamp;
   membersCount?: number;
+  completedAt?: Date | Timestamp;
 }
 
 export interface GroupMember {
