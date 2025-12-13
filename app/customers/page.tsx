@@ -105,6 +105,8 @@ export default function CustomersPage() {
         params.set("endDate", endDate);
       }
 
+      params.set("includeOngoing", "true");
+
       const res = await fetch(`/api/customers?${params}`);
       const data = await res.json();
       setCustomers(data.customers || []);

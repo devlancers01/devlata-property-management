@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { addPayment, createCustomer, getAllCustomers } from "@/lib/firebase/customers";
 import { checkBookingAvailability, createBookings } from "@/lib/firebase/bookings";
-// import { checkPermission } from "@/lib/firebase/permissions";
+import { syncCustomerPaymentToSale } from "@/lib/firebase/sales"; // ← Add this import
 
 // Helper to convert ISO string to Date
 function parseDate(value: any): Date {
@@ -41,12 +41,14 @@ export async function GET(req: NextRequest) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
     const searchQuery = searchParams.get("search") || undefined;
+    const includeOngoing = searchParams.get("includeOngoing") === "true";
 
     const customers = await getAllCustomers({
       status,
       startDate,
       endDate,
       searchQuery,
+      includeOngoing,
     });
 
     return NextResponse.json({ customers });
@@ -158,13 +160,32 @@ export async function POST(req: NextRequest) {
 
     // Add advance payment if present
     if (body.receivedAmount && body.receivedAmount > 0) {
-      await addPayment(customerUid, {
+      const paymentId = await addPayment(customerUid, {
         amount: body.receivedAmount,
         mode: body.advancePaymentMode || "cash",
         type: "advance",
         notes: "Advance payment",
         receiptUrl: body.advanceReceiptUrl || "",
       });
+
+      // ✅ Sync advance payment to sales
+      try {
+        await syncCustomerPaymentToSale(
+          customerUid,
+          paymentId,
+          {
+            amount: body.receivedAmount,
+            mode: body.advancePaymentMode || "cash",
+            type: "advance",
+            date: new Date(), // Current date
+            notes: "Advance payment",
+          },
+          "create"
+        );
+      } catch (saleError) {
+        console.error("Error syncing advance payment to sales:", saleError);
+        // Don't fail customer creation if sale sync fails
+      }
     }
 
     return NextResponse.json({

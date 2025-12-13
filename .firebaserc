@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "devlata-villa",
+    "databaseId": "development"
+  }
+}

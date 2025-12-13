@@ -11,10 +11,13 @@ import { LayoutDashboard, Users, Wallet, Calendar, Settings, Menu, Building2, Tr
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { permission } from "process"
+import { NotificationBell } from "@/components/notification-bell";
+import { Target } from "lucide-react";
 
 const navigation = [
   { name: "Customer Entry", href: "/customers", icon: Users, permission: "customers.view" },
   { name: "Monthly Expenses", href: "/monthly-expenses", icon: Wallet, permission: "expenses.view" },
+  { name: "Leads", href: "/leads", icon: Target, permission: "leads.view" }, // ← Add this line
   { name: "Yearly Expenses", href: "/yearly-expenses", icon: TrendingUp, permission: "expenses.view" },
   { name: "Booking Calendar", href: "/bookings", icon: Calendar, permission: "bookings.view" },
   // { name: "Settings", href: "/settings", icon: Settings },
@@ -58,9 +61,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           {navigation.map((item) => {
             const isActive = pathname === item.href
             return (
-              <div>
+              <div key={item.name}>
                 {session?.user?.permissions?.includes(item.permission) && <Link
-                  key={item.name}
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
@@ -87,9 +89,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               {visibleAdminNav.map((item) => {
                 const isActive = pathname.startsWith(item.href)
                 return (
-                  <div>
+                  <div key={item.name}>
                     {session?.user?.permissions?.includes(item.permission) && <Link
-                      key={item.name}
                       href={item.href}
                       className={cn(
                         "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
@@ -100,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     >
                       <item.icon className="w-5 h-5" />
                       {item.name}
-                    </Link>}  
+                    </Link>}
                   </div>
                 )
               })}
@@ -108,6 +109,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </nav>
         <div className="p-4 border-t mt-auto">
+          <div className="flex items-center justify-end mb-2">
+            <NotificationBell />
+          </div>
           <Button
             variant="destructive"
             className="w-full justify-start"
@@ -142,49 +146,52 @@ export function AppShell({ children }: { children: ReactNode }) {
               Logout
             </Button>
           </div>
-          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="w-5 h-5" />
-              </Button>
-            </SheetTrigger>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="w-5 h-5" />
+                </Button>
+              </SheetTrigger>
 
-            <SheetContent side="left" className="w-64 p-0">
-              <div className="p-6 border-b">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                    <Building2 className="w-6 h-6 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <h1 className="font-bold text-lg leading-tight">Property</h1>
-                    <p className="text-xs text-muted-foreground">Management</p>
+              <SheetContent side="left" className="w-64 p-0">
+                <div className="p-6 border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                      <Building2 className="w-6 h-6 text-primary-foreground" />
+                    </div>
+                    <div>
+                      <h1 className="font-bold text-lg leading-tight">Property</h1>
+                      <p className="text-xs text-muted-foreground">Management</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <nav className="p-4 space-y-1">
-                {allNavigation.map((item) => {
-                  const isActive = pathname === item.href || pathname.startsWith(item.href)
-                  return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                      )}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      {item.name}
-                    </Link>
-                  )
-                })}
-              </nav>
-            </SheetContent>
+                <nav className="p-4 space-y-1">
+                  {allNavigation.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href)
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                        )}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        {item.name}
+                      </Link>
+                    )
+                  })}
+                </nav>
+              </SheetContent>
 
-          </Sheet>
+            </Sheet>
+          </div>
         </header>
 
         {/* Main Content */}
